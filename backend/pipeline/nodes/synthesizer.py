@@ -46,7 +46,12 @@ def _build_context(state: SearchState) -> str:
     return "\n---\n".join(lines)
 
 
-async def synthesizer(state: SearchState, history: list[dict] | None = None):
+async def synthesizer(
+    state: SearchState,
+    history: list[dict] | None = None,
+    model: str = "groq/llama-3.3-70b-versatile",
+    api_key: str | None = None,
+):
     context = _build_context(state)
 
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -66,12 +71,11 @@ async def synthesizer(state: SearchState, history: list[dict] | None = None):
         ),
     })
 
-    response = await litellm.acompletion(
-        model="groq/llama-3.3-70b-versatile",
-        messages=messages,
-        temperature=0.4,
-        stream=True,
-    )
+    kwargs = dict(model=model, messages=messages, temperature=0.4, stream=True)
+    if api_key:
+        kwargs["api_key"] = api_key
+
+    response = await litellm.acompletion(**kwargs)
 
     async for chunk in response:
         delta = chunk.choices[0].delta

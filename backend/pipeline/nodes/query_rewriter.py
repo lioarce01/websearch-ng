@@ -28,9 +28,13 @@ User: "What's happening with AI regulation in Europe?"
 Output: {"queries": ["EU AI Act 2025 implementation requirements high risk systems compliance", "European artificial intelligence regulation enforcement penalties prohibited use cases", "EU AI Act impact tech companies GPT models foundation model obligations 2025"]}"""
 
 
-async def query_rewriter(state: SearchState) -> dict:
-    response = await litellm.acompletion(
-        model="groq/llama-3.1-8b-instant",
+async def query_rewriter(
+    state: SearchState,
+    model: str = "groq/llama-3.1-8b-instant",
+    api_key: str | None = None,
+) -> dict:
+    kwargs = dict(
+        model=model,
         messages=[
             {"role": "system", "content": REWRITE_PROMPT},
             {"role": "user", "content": state["query"]},
@@ -38,6 +42,10 @@ async def query_rewriter(state: SearchState) -> dict:
         temperature=0.4,
         response_format={"type": "json_object"},
     )
+    if api_key:
+        kwargs["api_key"] = api_key
+
+    response = await litellm.acompletion(**kwargs)
 
     raw = response.choices[0].message.content
     parsed = json.loads(raw)

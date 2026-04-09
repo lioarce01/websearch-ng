@@ -5,6 +5,8 @@ import SearchBar from "./components/SearchBar";
 import AnswerStream from "./components/AnswerStream";
 import SourcesList from "./components/SourcesList";
 import PipelineStatus, { type Stage } from "./components/PipelineStatus";
+import SettingsModal from "./components/SettingsModal";
+import { useSettings, PROVIDERS } from "./hooks/useSettings";
 
 interface Source {
   index: number;
@@ -20,7 +22,7 @@ interface Turn {
   sources: Source[];
 }
 
-const CHARS_PER_FRAME = 3;
+const CHARS_PER_FRAME = 2; // hyper-slow for testing — raise to 3-6 for production
 
 const STATUS_TO_STAGE: Record<string, Stage> = {
   "Rewriting query...":    "rewriting",
@@ -31,6 +33,8 @@ const STATUS_TO_STAGE: Record<string, Stage> = {
 };
 
 export default function Home() {
+  const { config, save: saveConfig } = useSettings();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [turns, setTurns]               = useState<Turn[]>([]);
   const [loading, setLoading]           = useState(false);
   const [stage, setStage]               = useState<Stage>("rewriting");
@@ -111,7 +115,7 @@ export default function Home() {
       const res = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, history }),
+        body: JSON.stringify({ query, history, llm_config: config }),
       });
       if (!res.ok || !res.body) throw new Error("Search request failed");
 
@@ -151,6 +155,33 @@ export default function Home() {
 
   return (
     <main className="h-screen bg-background flex flex-col overflow-hidden">
+
+      {/* Settings gear — always top-right */}
+      <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
+        {/* Current provider badge */}
+        <span className="text-[11px] text-foreground-muted font-mono hidden sm:block">
+          {PROVIDERS[config.provider]?.label}
+        </span>
+        <button
+          onClick={() => setSettingsOpen(true)}
+          className="w-8 h-8 rounded-xl flex items-center justify-center
+                     text-foreground-muted hover:text-foreground hover:bg-surface-alt
+                     transition-all duration-200"
+          aria-label="Settings"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </button>
+      </div>
+
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        config={config}
+        onSave={saveConfig}
+      />
 
       {/* ── HERO STATE: centered search ── */}
       {!hasConversation && (

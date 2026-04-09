@@ -35,9 +35,9 @@ function renderCitations(text: string, sources: Source[]) {
         rel="noopener noreferrer"
         title={source?.title}
         className="inline-flex items-center justify-center mx-0.5 w-4 h-4 text-[10px]
-                   font-mono font-semibold rounded-full bg-plex/15 text-plex
-                   hover:bg-plex/30 transition-colors cursor-pointer
-                   border border-plex/25 hover:border-plex/50 no-underline
+                   font-mono font-semibold rounded-full bg-white/10 text-foreground-muted
+                   hover:bg-white/20 hover:text-foreground transition-colors cursor-pointer
+                   border border-white/15 hover:border-white/30 no-underline
                    leading-none align-middle relative -top-px"
       >
         {idx}
@@ -140,10 +140,10 @@ function makeComponents(sources: Source[]) {
 
     // Lists
     ul: ({ children }: React.ComponentPropsWithoutRef<"ul">) => (
-      <ul className="my-3 ml-5 space-y-1.5 list-disc marker:text-plex/60">{children}</ul>
+      <ul className="my-3 ml-5 space-y-1.5 list-disc marker:text-foreground-muted/60">{children}</ul>
     ),
     ol: ({ children }: React.ComponentPropsWithoutRef<"ol">) => (
-      <ol className="my-3 ml-5 space-y-1.5 list-decimal marker:text-plex/60">{children}</ol>
+      <ol className="my-3 ml-5 space-y-1.5 list-decimal marker:text-foreground-muted/60">{children}</ol>
     ),
     li: ({ children }: React.ComponentPropsWithoutRef<"li">) => (
       <li className="text-foreground/85 leading-6 pl-1">{pc(children)}</li>
@@ -160,7 +160,7 @@ function makeComponents(sources: Source[]) {
     // Links
     a: ({ href, children }: React.ComponentPropsWithoutRef<"a">) => (
       <a href={href} target="_blank" rel="noopener noreferrer"
-         className="text-plex hover:text-plex-dim underline underline-offset-2 decoration-plex/40 transition-colors">
+         className="text-foreground/70 hover:text-foreground underline underline-offset-2 decoration-white/20 hover:decoration-white/40 transition-colors">
         {children}
       </a>
     ),
@@ -169,7 +169,7 @@ function makeComponents(sources: Source[]) {
     code: ({ children, className }: React.ComponentPropsWithoutRef<"code">) => {
       if (className?.startsWith("language-")) return <code className={className}>{children}</code>;
       return (
-        <code className="px-1.5 py-0.5 rounded-md bg-plex/10 text-plex text-[13px] font-mono border border-plex/15">
+        <code className="px-1.5 py-0.5 rounded-md bg-white/8 text-foreground/80 text-[13px] font-mono border border-white/10">
           {children}
         </code>
       );
@@ -187,7 +187,7 @@ function makeComponents(sources: Source[]) {
 
     // Blockquote
     blockquote: ({ children }: React.ComponentPropsWithoutRef<"blockquote">) => (
-      <blockquote className="my-4 pl-4 border-l-2 border-plex/50 text-foreground/60 italic">
+      <blockquote className="my-4 pl-4 border-l-2 border-white/20 text-foreground/60 italic">
         {children}
       </blockquote>
     ),
@@ -239,7 +239,7 @@ export default function AnswerStream({ status, answer, loading, sources }: Answe
             {answer}
           </ReactMarkdown>
           {loading && (
-            <span className="inline-block w-0.5 h-4 bg-plex animate-pulse ml-0.5 align-middle rounded-full" />
+            <span className="inline-block w-0.5 h-4 bg-foreground-muted animate-pulse ml-0.5 align-middle rounded-full" />
           )}
         </div>
       )}
