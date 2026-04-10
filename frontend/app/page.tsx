@@ -22,6 +22,42 @@ interface Turn {
   answer: string;
   sources: Source[];
   suggestions: string[];
+  queries: string[];
+}
+
+const DOMAIN_GROUPS = [
+  { label: "Academic", key: "academic", domains: ["arxiv.org", "scholar.google.com", "pubmed.ncbi.nlm.nih.gov", "semanticscholar.org"] },
+  { label: "News",     key: "news",     domains: ["reuters.com", "apnews.com", "bbc.com", "theguardian.com"] },
+  { label: "Tech",     key: "tech",     domains: ["github.com", "stackoverflow.com", "docs.python.org", "developer.mozilla.org"] },
+  { label: "Reddit",   key: "reddit",   domains: ["reddit.com"] },
+];
+
+function QueryPills({ queries }: { queries: string[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="flex flex-col gap-1.5 -mt-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1 text-[11px] text-foreground-muted/35 hover:text-foreground-muted/60 transition-colors cursor-pointer w-fit"
+      >
+        {queries.length} search {queries.length === 1 ? "query" : "queries"}
+        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+             className={`transition-transform duration-150 ${open ? "rotate-180" : ""}`}>
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      {open && (
+        <div className="flex flex-wrap gap-1.5">
+          {queries.map((q, i) => (
+            <span key={i} className="text-[11px] text-foreground-muted/50 border border-white/8 rounded-full px-2.5 py-0.5 bg-white/3">
+              {q}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 const CHARS_PER_FRAME = 2; // hyper-slow for testing — raise to 3-6 for production
@@ -41,6 +77,7 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchMode, setSearchMode]     = useState<SearchMode>("search");
   const [timeRange, setTimeRange]       = useState<string>("");
+  const [domainFilter, setDomainFilter] = useState<string>("");
   const [turns, setTurns]               = useState<Turn[]>([]);
   const [loading, setLoading]           = useState(false);
   const [stage, setStage]               = useState<Stage>("rewriting");
@@ -55,6 +92,7 @@ export default function Home() {
   const finalSourcesRef   = useRef<Source[]>([]);
   const currentQueryRef   = useRef("");
   const suggestionsRef    = useRef<string[]>([]);
+  const queriesRef        = useRef<string[]>([]);
   const scrollRef         = useRef<HTMLDivElement>(null);
 
   // Resizable artifact panel
@@ -84,7 +122,7 @@ export default function Home() {
     const finalAnswer = receivedRef.current;
     setTurns((prev) => [
       ...prev,
-      { query: currentQueryRef.current, answer: finalAnswer, sources: finalSourcesRef.current, suggestions: suggestionsRef.current },
+      { query: currentQueryRef.current, answer: finalAnswer, sources: finalSourcesRef.current, suggestions: suggestionsRef.current, queries: queriesRef.current },
     ]);
     setDisplayedAnswer("");
     setStreamSources([]);
@@ -123,6 +161,26 @@ export default function Home() {
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [turns]);
 
+  // Session persistence — restore on mount
+  useEffect(() => {
+    try {
+      const savedTurns = sessionStorage.getItem("ws_turns");
+      const savedMode  = sessionStorage.getItem("ws_mode");
+      if (savedTurns) setTurns(JSON.parse(savedTurns));
+      if (savedMode === "research" || savedMode === "search") setSearchMode(savedMode);
+    } catch { /* corrupt data — start fresh */ }
+  }, []);
+
+  // Session persistence — persist turns
+  useEffect(() => {
+    try { sessionStorage.setItem("ws_turns", JSON.stringify(turns)); } catch { /* quota exceeded */ }
+  }, [turns]);
+
+  // Session persistence — persist mode
+  useEffect(() => {
+    sessionStorage.setItem("ws_mode", searchMode);
+  }, [searchMode]);
+
   // Drag-to-resize artifact panel
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
@@ -159,6 +217,7 @@ export default function Home() {
     isDoneRef.current       = false;
     finalSourcesRef.current = [];
     suggestionsRef.current  = [];
+    queriesRef.current      = [];
     currentQueryRef.current = query;
 
     setLoading(true);
@@ -177,7 +236,14 @@ export default function Home() {
       const res = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, history, llm_config: config, mode: searchMode, time_range: timeRange }),
+        body: JSON.stringify({
+          query,
+          history,
+          llm_config: config,
+          mode: searchMode,
+          time_range: timeRange,
+          include_domains: DOMAIN_GROUPS.find(g => g.key === domainFilter)?.domains ?? [],
+        }),
       });
       if (!res.ok || !res.body) throw new Error("Search request failed");
 
@@ -205,6 +271,7 @@ export default function Home() {
           if (event === "status")      { const s = STATUS_TO_STAGE[payload.message]; if (s) setStage(s); }
           if (event === "sources")     { finalSourcesRef.current = payload.sources; setStreamSources(payload.sources); }
           if (event === "token")       { receivedRef.current += payload.text; }
+          if (event === "queries")     { queriesRef.current = payload.queries ?? []; }
           if (event === "suggestions") { suggestionsRef.current = payload.questions ?? []; }
           if (event === "done")        { isDoneRef.current = true; }
           if (event === "error")       { console.error("[search error]", payload.message); stopSoftStream(); setLoading(false); }
@@ -273,6 +340,8 @@ export default function Home() {
                 onModeChange={setSearchMode}
                 timeRange={timeRange}
                 onTimeRangeChange={setTimeRange}
+                domainFilter={domainFilter}
+                onDomainFilterChange={setDomainFilter}
               />
             </div>
           </div>
@@ -291,9 +360,12 @@ export default function Home() {
                 {/* Past turns */}
                 {turns.map((turn, i) => (
                   <div key={i} className="flex flex-col gap-5 animate-fade-in-up">
-                    <p className="text-[15px] font-medium text-foreground leading-relaxed">
-                      {turn.query}
-                    </p>
+                    <div className="flex flex-col gap-2">
+                      <p className="text-[15px] font-medium text-foreground leading-relaxed">
+                        {turn.query}
+                      </p>
+                      {turn.queries?.length > 0 && <QueryPills queries={turn.queries} />}
+                    </div>
                     <SourcesList sources={turn.sources} />
 
                     {/* In research mode: report-ready card instead of inline answer */}
@@ -406,6 +478,8 @@ export default function Home() {
                   onModeChange={setSearchMode}
                   timeRange={timeRange}
                   onTimeRangeChange={setTimeRange}
+                  domainFilter={domainFilter}
+                  onDomainFilterChange={setDomainFilter}
                 />
               </div>
             </div>

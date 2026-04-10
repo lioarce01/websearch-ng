@@ -48,11 +48,12 @@ class LLMConfig(BaseModel):
 
 
 class SearchRequest(BaseModel):
-    query:      str
-    history:    list[HistoryTurn] = []
-    llm_config: LLMConfig = LLMConfig()
-    mode:       str = "search"
-    time_range: str = ""
+    query:          str
+    history:        list[HistoryTurn] = []
+    llm_config:     LLMConfig = LLMConfig()
+    mode:           str = "search"
+    time_range:     str = ""
+    include_domains: list[str] = []
 
 
 def _sse(event: str, data: dict) -> str:
@@ -67,7 +68,7 @@ def _resolve_models(llm_config: LLMConfig) -> tuple[str, str, str | None]:
     return fast_model, main_model, api_key
 
 
-async def _search_generator(query: str, history: list[HistoryTurn], llm_config: LLMConfig, mode: str = "search", time_range: str = ""):
+async def _search_generator(query: str, history: list[HistoryTurn], llm_config: LLMConfig, mode: str = "search", time_range: str = "", include_domains: list[str] = []):
     print(f"[search] mode={mode!r} time_range={time_range!r} max_sources={llm_config.maxSources} content_cap={llm_config.contentCap} query={query[:60]!r}")
     try:
         fast_model, main_model, api_key = _resolve_models(llm_config)
@@ -86,9 +87,12 @@ async def _search_generator(query: str, history: list[HistoryTurn], llm_config: 
 
         yield _sse("status", {"message": "Rewriting query..."})
         state.update(await query_rewriter(state, model=fast_model, api_key=api_key, mode=mode))
+        rewritten = state.get("rewritten_queries", [])
+        if rewritten:
+            yield _sse("queries", {"queries": rewritten})
 
         yield _sse("status", {"message": "Searching the web..."})
-        state.update(await searcher(state, mode=mode, time_range=time_range))
+        state.update(await searcher(state, mode=mode, time_range=time_range, include_domains=include_domains))
 
         yield _sse("status", {"message": "Extracting content..."})
         state.update(await extractor(state, mode=mode))
@@ -108,7 +112,7 @@ async def _search_generator(query: str, history: list[HistoryTurn], llm_config: 
 
                 # Run follow-up search with a temporary state slice
                 gap_state: SearchState = {**state, "rewritten_queries": follow_up_queries, "raw_results": []}
-                gap_state.update(await searcher(gap_state, mode=mode))
+                gap_state.update(await searcher(gap_state, mode=mode, include_domains=include_domains))
                 gap_state.update(await extractor(gap_state, mode=mode))
 
                 # Merge follow-up raw results with original, then re-rank deduped
@@ -159,7 +163,7 @@ async def _search_generator(query: str, history: list[HistoryTurn], llm_config: 
 @app.post("/api/search")
 async def search(req: SearchRequest):
     return StreamingResponse(
-        _search_generator(req.query, req.history, req.llm_config, req.mode, req.time_range),
+        _search_generator(req.query, req.history, req.llm_config, req.mode, req.time_range, req.include_domains),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

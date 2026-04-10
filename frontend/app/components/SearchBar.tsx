@@ -6,6 +6,13 @@ import { Button } from "@/components/ui/button";
 
 export type SearchMode = "search" | "research";
 
+const DOMAIN_GROUPS = [
+  { label: "Academic", key: "academic", domains: ["arxiv.org", "scholar.google.com", "pubmed.ncbi.nlm.nih.gov", "semanticscholar.org"] },
+  { label: "News",     key: "news",     domains: ["reuters.com", "apnews.com", "bbc.com", "theguardian.com"] },
+  { label: "Tech",     key: "tech",     domains: ["github.com", "stackoverflow.com", "docs.python.org", "developer.mozilla.org"] },
+  { label: "Reddit",   key: "reddit",   domains: ["reddit.com"] },
+];
+
 const TIME_RANGES = [
   { value: "",      label: "Anytime"    },
   { value: "day",   label: "Past day"   },
@@ -22,6 +29,8 @@ interface SearchBarProps {
   onModeChange: (mode: SearchMode) => void;
   timeRange: string;
   onTimeRangeChange: (r: string) => void;
+  domainFilter: string;
+  onDomainFilterChange: (d: string) => void;
 }
 
 function Spinner() {
@@ -58,6 +67,8 @@ export default function SearchBar({
   onModeChange,
   timeRange,
   onTimeRangeChange,
+  domainFilter,
+  onDomainFilterChange,
 }: SearchBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const menuRef  = useRef<HTMLDivElement>(null);
@@ -65,6 +76,7 @@ export default function SearchBar({
 
   const isResearch   = mode === "research";
   const hasTimeRange = timeRange !== "";
+  const hasDomain    = domainFilter !== "";
 
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
@@ -127,7 +139,7 @@ export default function SearchBar({
                 <path d="M12 5v14M5 12h14" />
               </svg>
               {/* Dot indicator when any filter is active */}
-              {(isResearch || hasTimeRange) && (
+              {(isResearch || hasTimeRange || hasDomain) && (
                 <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-white/60" />
               )}
             </button>
@@ -137,7 +149,13 @@ export default function SearchBar({
               <div
                 className="absolute top-full mt-2 left-0 w-52
                            rounded-xl border border-white/10 bg-[#1c1c1c]
-                           shadow-2xl shadow-black/70 overflow-hidden z-50 animate-fade-in"
+                           shadow-2xl shadow-black/70 z-50 animate-fade-in
+                           max-h-80 overflow-y-auto
+                           [&::-webkit-scrollbar]:w-[3px]
+                           [&::-webkit-scrollbar-track]:bg-transparent
+                           [&::-webkit-scrollbar-thumb]:bg-white/15
+                           [&::-webkit-scrollbar-thumb]:rounded-full
+                           [&::-webkit-scrollbar-thumb:hover]:bg-white/30"
               >
                 <div className="px-3 pt-2.5 pb-1">
                   <span className="text-[10px] font-medium text-foreground-muted/40 uppercase tracking-widest">
@@ -183,6 +201,30 @@ export default function SearchBar({
                     >
                       <span className="text-[13px] text-foreground">{tr.label}</span>
                       {timeRange === tr.value && (
+                        <span className="text-white/60"><CheckIcon /></span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Domain filter section */}
+                <div className="mx-3 border-t border-white/8 my-1" />
+                <div className="px-3 pt-1.5 pb-1">
+                  <span className="text-[10px] font-medium text-foreground-muted/40 uppercase tracking-widest">
+                    Sources
+                  </span>
+                </div>
+                <div className="px-1 pb-1.5">
+                  {DOMAIN_GROUPS.map((g) => (
+                    <button
+                      key={g.key}
+                      type="button"
+                      onClick={() => { onDomainFilterChange(domainFilter === g.key ? "" : g.key); setOpen(false); }}
+                      className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg
+                                 hover:bg-white/8 transition-colors duration-100"
+                    >
+                      <span className="text-[13px] text-foreground">{g.label}</span>
+                      {domainFilter === g.key && (
                         <span className="text-white/60"><CheckIcon /></span>
                       )}
                     </button>
