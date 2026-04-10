@@ -480,6 +480,7 @@ export default function Home() {
                   onTimeRangeChange={setTimeRange}
                   domainFilter={domainFilter}
                   onDomainFilterChange={setDomainFilter}
+                  dropdownPosition="up"
                 />
               </div>
             </div>

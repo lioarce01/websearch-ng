@@ -31,6 +31,7 @@ interface SearchBarProps {
   onTimeRangeChange: (r: string) => void;
   domainFilter: string;
   onDomainFilterChange: (d: string) => void;
+  dropdownPosition?: "up" | "down";
 }
 
 function Spinner() {
@@ -69,6 +70,7 @@ export default function SearchBar({
   onTimeRangeChange,
   domainFilter,
   onDomainFilterChange,
+  dropdownPosition = "down",
 }: SearchBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const menuRef  = useRef<HTMLDivElement>(null);
@@ -147,7 +149,7 @@ export default function SearchBar({
             {/* Dropdown */}
             {open && (
               <div
-                className="absolute top-full mt-2 left-0 w-52
+                className={`absolute ${dropdownPosition === "up" ? "bottom-full mb-2" : "top-full mt-2"} left-0 w-52
                            rounded-xl border border-white/10 bg-[#1c1c1c]
                            shadow-2xl shadow-black/70 z-50 animate-fade-in
                            max-h-80 overflow-y-auto
@@ -155,7 +157,7 @@ export default function SearchBar({
                            [&::-webkit-scrollbar-track]:bg-transparent
                            [&::-webkit-scrollbar-thumb]:bg-white/15
                            [&::-webkit-scrollbar-thumb]:rounded-full
-                           [&::-webkit-scrollbar-thumb:hover]:bg-white/30"
+                           [&::-webkit-scrollbar-thumb:hover]:bg-white/30`}
               >
                 <div className="px-3 pt-2.5 pb-1">
                   <span className="text-[10px] font-medium text-foreground-muted/40 uppercase tracking-widest">
