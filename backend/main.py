@@ -20,6 +20,7 @@ from pipeline.nodes.extractor import extractor
 from pipeline.nodes.reranker import reranker
 from pipeline.nodes.synthesizer import synthesizer
 from pipeline.nodes.gap_analyzer import gap_analyzer
+from pipeline.nodes.suggester import suggester
 from pipeline.state import SearchState
 
 app = FastAPI(title="AI Search Engine")
@@ -51,6 +52,7 @@ class SearchRequest(BaseModel):
     history:    list[HistoryTurn] = []
     llm_config: LLMConfig = LLMConfig()
     mode:       str = "search"
+    time_range: str = ""
 
 
 def _sse(event: str, data: dict) -> str:
@@ -65,8 +67,8 @@ def _resolve_models(llm_config: LLMConfig) -> tuple[str, str, str | None]:
     return fast_model, main_model, api_key
 
 
-async def _search_generator(query: str, history: list[HistoryTurn], llm_config: LLMConfig, mode: str = "search"):
-    print(f"[search] mode={mode!r} max_sources={llm_config.maxSources} content_cap={llm_config.contentCap} query={query[:60]!r}")
+async def _search_generator(query: str, history: list[HistoryTurn], llm_config: LLMConfig, mode: str = "search", time_range: str = ""):
+    print(f"[search] mode={mode!r} time_range={time_range!r} max_sources={llm_config.maxSources} content_cap={llm_config.contentCap} query={query[:60]!r}")
     try:
         fast_model, main_model, api_key = _resolve_models(llm_config)
         max_sources = llm_config.maxSources
@@ -86,7 +88,7 @@ async def _search_generator(query: str, history: list[HistoryTurn], llm_config: 
         state.update(await query_rewriter(state, model=fast_model, api_key=api_key, mode=mode))
 
         yield _sse("status", {"message": "Searching the web..."})
-        state.update(await searcher(state, mode=mode))
+        state.update(await searcher(state, mode=mode, time_range=time_range))
 
         yield _sse("status", {"message": "Extracting content..."})
         state.update(await extractor(state, mode=mode))
@@ -127,6 +129,7 @@ async def _search_generator(query: str, history: list[HistoryTurn], llm_config: 
         yield _sse("sources", {"sources": state["sources"]})
 
         yield _sse("status", {"message": "Generating answer..."})
+        accumulated_answer = ""
         async for token in synthesizer(
             state,
             history=[h.model_dump() for h in history],
@@ -134,7 +137,17 @@ async def _search_generator(query: str, history: list[HistoryTurn], llm_config: 
             api_key=api_key,
             mode=mode,
         ):
+            accumulated_answer += token
             yield _sse("token", {"text": token})
+
+        # Follow-up suggestions: search mode only (research mode uses full pipeline per query)
+        if mode != "research":
+            try:
+                questions = await suggester(state, model=fast_model, api_key=api_key, answer=accumulated_answer)
+                if questions:
+                    yield _sse("suggestions", {"questions": questions})
+            except Exception:
+                pass
 
         yield _sse("done", {})
 
@@ -146,7 +159,7 @@ async def _search_generator(query: str, history: list[HistoryTurn], llm_config: 
 @app.post("/api/search")
 async def search(req: SearchRequest):
     return StreamingResponse(
-        _search_generator(req.query, req.history, req.llm_config, req.mode),
+        _search_generator(req.query, req.history, req.llm_config, req.mode, req.time_range),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

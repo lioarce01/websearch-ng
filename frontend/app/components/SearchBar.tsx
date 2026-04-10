@@ -6,12 +6,22 @@ import { Button } from "@/components/ui/button";
 
 export type SearchMode = "search" | "research";
 
+const TIME_RANGES = [
+  { value: "",      label: "Anytime"    },
+  { value: "day",   label: "Past day"   },
+  { value: "week",  label: "Past week"  },
+  { value: "month", label: "Past month" },
+  { value: "year",  label: "Past year"  },
+];
+
 interface SearchBarProps {
   onSearch: (query: string) => void;
   loading: boolean;
   autoFocusOnMount?: boolean;
   mode: SearchMode;
   onModeChange: (mode: SearchMode) => void;
+  timeRange: string;
+  onTimeRangeChange: (r: string) => void;
 }
 
 function Spinner() {
@@ -46,12 +56,15 @@ export default function SearchBar({
   autoFocusOnMount = true,
   mode,
   onModeChange,
+  timeRange,
+  onTimeRangeChange,
 }: SearchBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const menuRef  = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
 
-  const isResearch = mode === "research";
+  const isResearch   = mode === "research";
+  const hasTimeRange = timeRange !== "";
 
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
@@ -105,7 +118,7 @@ export default function SearchBar({
               disabled={loading}
               onClick={() => setOpen((v) => !v)}
               aria-label="Search options"
-              className="w-8 h-8 rounded-lg flex items-center justify-center
+              className="relative w-8 h-8 rounded-lg flex items-center justify-center
                          text-foreground-muted/60 hover:text-foreground-muted
                          hover:bg-white/8 transition-colors duration-150
                          focus:outline-none"
@@ -113,6 +126,10 @@ export default function SearchBar({
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <path d="M12 5v14M5 12h14" />
               </svg>
+              {/* Dot indicator when any filter is active */}
+              {(isResearch || hasTimeRange) && (
+                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-white/60" />
+              )}
             </button>
 
             {/* Dropdown */}
@@ -127,7 +144,7 @@ export default function SearchBar({
                     Mode
                   </span>
                 </div>
-                <div className="px-1 pb-1.5">
+                <div className="px-1 pb-1">
                   <button
                     type="button"
                     onClick={() => { onModeChange(isResearch ? "search" : "research"); setOpen(false); }}
@@ -146,6 +163,30 @@ export default function SearchBar({
                       </span>
                     )}
                   </button>
+                </div>
+
+                {/* Time range section */}
+                <div className="mx-3 border-t border-white/8 my-1" />
+                <div className="px-3 pt-1.5 pb-1">
+                  <span className="text-[10px] font-medium text-foreground-muted/40 uppercase tracking-widest">
+                    Time
+                  </span>
+                </div>
+                <div className="px-1 pb-1.5">
+                  {TIME_RANGES.map((tr) => (
+                    <button
+                      key={tr.value}
+                      type="button"
+                      onClick={() => { onTimeRangeChange(tr.value); setOpen(false); }}
+                      className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg
+                                 hover:bg-white/8 transition-colors duration-100"
+                    >
+                      <span className="text-[13px] text-foreground">{tr.label}</span>
+                      {timeRange === tr.value && (
+                        <span className="text-white/60"><CheckIcon /></span>
+                      )}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}

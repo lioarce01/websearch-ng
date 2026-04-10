@@ -4,17 +4,24 @@ from tavily import AsyncTavilyClient
 from pipeline.state import SearchState
 
 
-async def searcher(state: SearchState, mode: str = "search") -> dict:
+DAYS_MAP = {"day": 1, "week": 7, "month": 30, "year": 365}
+
+
+async def searcher(state: SearchState, mode: str = "search", time_range: str = "") -> dict:
     client = AsyncTavilyClient(api_key=os.environ["TAVILY_API_KEY"])
     max_results = 7 if mode == "research" else 5
+    days = DAYS_MAP.get(time_range)  # None if time_range is "" or unrecognized
 
     async def search_one(query: str) -> list[dict]:
         try:
-            response = await client.search(
+            kwargs = dict(
                 query=query,
                 max_results=max_results,
-                include_raw_content=True,  # fetch full page content when available
+                include_raw_content=True,
             )
+            if days is not None:
+                kwargs["days"] = days
+            response = await client.search(**kwargs)
             return response.get("results", [])
         except Exception:
             return []

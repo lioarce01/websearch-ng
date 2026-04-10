@@ -18,6 +18,7 @@ interface AnswerStreamProps {
   loading: boolean;
   sources: Source[];
   query?: string;
+  mode?: string;
 }
 
 type ExportFormat = { label: string; ext: string; mime: string };
@@ -261,9 +262,10 @@ function makeComponents(sources: Source[]) {
   };
 }
 
-export default function AnswerStream({ status, answer, loading, sources, query = "" }: AnswerStreamProps) {
+export default function AnswerStream({ status, answer, loading, sources, query = "", mode }: AnswerStreamProps) {
   const [exportOpen, setExportOpen]   = useState(false);
   const [downloaded, setDownloaded]   = useState(false);
+  const [copiedAnswer, setCopiedAnswer] = useState(false);
   const exportRef                     = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -314,9 +316,25 @@ export default function AnswerStream({ status, answer, loading, sources, query =
         </div>
       )}
 
-      {/* Export dropdown — only when answer is complete */}
+      {/* Footer — copy + export, only when answer is complete */}
       {!loading && answer && (
-        <div className="flex justify-end pt-1">
+        <div className="flex justify-end items-center gap-3 pt-1">
+
+          {/* Copy answer button — always visible */}
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(answer);
+              setCopiedAnswer(true);
+              setTimeout(() => setCopiedAnswer(false), 2000);
+            }}
+            className="flex items-center gap-1.5 text-[11px] text-foreground-muted/50
+                       hover:text-foreground-muted transition-colors duration-150 cursor-pointer"
+          >
+            {copiedAnswer ? <><CheckIcon />Copied</> : <><CopyIcon />Copy</>}
+          </button>
+
+          {/* Export dropdown — research mode only */}
+          {mode === "research" && (
           <div className="relative" ref={exportRef}>
             <button
               onClick={() => setExportOpen((v) => !v)}
@@ -331,7 +349,7 @@ export default function AnswerStream({ status, answer, loading, sources, query =
             {exportOpen && (
               <div className="absolute top-full mt-2 right-0 w-40
                               rounded-xl border border-white/10 bg-[#1c1c1c]
-                              shadow-2xl shadow-black/70 overflow-hidden z-50 animate-fade-in">
+                              shadow-2xl shadow-black/70 overflow-hidden z-[9999] animate-fade-in">
                 <div className="px-3 pt-2.5 pb-1">
                   <span className="text-[10px] font-medium text-foreground-muted/40 uppercase tracking-widest">
                     Export as
@@ -354,6 +372,7 @@ export default function AnswerStream({ status, answer, loading, sources, query =
               </div>
             )}
           </div>
+          )}
         </div>
       )}
     </div>
