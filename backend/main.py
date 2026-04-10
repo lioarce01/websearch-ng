@@ -21,6 +21,7 @@ from pipeline.nodes.reranker import reranker
 from pipeline.nodes.synthesizer import synthesizer
 from pipeline.nodes.gap_analyzer import gap_analyzer
 from pipeline.nodes.suggester import suggester
+from pipeline.nodes.summarizer import summarizer
 from pipeline.state import SearchState
 
 app = FastAPI(title="AI Search Engine")
@@ -153,6 +154,15 @@ async def _search_generator(query: str, history: list[HistoryTurn], llm_config: 
             except Exception:
                 pass
 
+        # Research teaser: AI-generated theme label + summary
+        if mode == "research" and accumulated_answer:
+            try:
+                theme, teaser = await summarizer(query, accumulated_answer, model=fast_model, api_key=api_key)
+                if theme or teaser:
+                    yield _sse("teaser", {"theme": theme, "text": teaser})
+            except Exception:
+                pass
+
         yield _sse("done", {})
 
     except Exception as e:
@@ -197,6 +207,29 @@ def _clean_label(model_id: str) -> str:
     return name.replace("-", " ").replace("_", " ").title()
 
 
+def _parse_openrouter_pricing(pricing: dict) -> dict:
+    """Return a pricing summary for an OpenRouter model."""
+    try:
+        prompt     = float(pricing.get("prompt")     or 0)
+        completion = float(pricing.get("completion") or 0)
+    except (TypeError, ValueError):
+        return {"type": "unknown"}
+
+    if prompt == 0 and completion == 0:
+        return {"type": "free"}
+
+    # Convert per-token price → per 1M tokens, round to 2 decimal places
+    def fmt(v: float) -> str:
+        per_1m = v * 1_000_000
+        return f"${per_1m:.2f}" if per_1m >= 0.01 else f"${per_1m:.4f}"
+
+    return {
+        "type":       "paid",
+        "prompt":     fmt(prompt),
+        "completion": fmt(completion),
+    }
+
+
 @app.post("/api/models")
 async def list_models(req: ModelListRequest):
     if req.provider == "anthropic":
@@ -228,7 +261,7 @@ async def list_models(req: ModelListRequest):
 
         raw_models = data.get("data", [])
 
-        # OpenRouter has different shape
+        # OpenRouter has different shape and includes pricing
         if req.provider == "openrouter":
             models = []
             for m in raw_models:
@@ -236,7 +269,8 @@ async def list_models(req: ModelListRequest):
                 label = m.get("name") or _clean_label(mid)
                 if any(k in mid.lower() for k in FILTER_KEYWORDS):
                     continue
-                models.append({"id": f"openrouter/{mid}", "label": label})
+                pricing = _parse_openrouter_pricing(m.get("pricing", {}))
+                models.append({"id": f"openrouter/{mid}", "label": label, "pricing": pricing})
         else:
             prefix = "groq/" if req.provider == "groq" else ""
             models = []
@@ -244,7 +278,8 @@ async def list_models(req: ModelListRequest):
                 mid = m.get("id", "")
                 if any(k in mid.lower() for k in FILTER_KEYWORDS):
                     continue
-                models.append({"id": f"{prefix}{mid}", "label": _clean_label(mid)})
+                pricing = {"type": "free_tier"} if req.provider == "groq" else None
+                models.append({"id": f"{prefix}{mid}", "label": _clean_label(mid), "pricing": pricing})
 
         # Sort alphabetically
         models.sort(key=lambda m: m["label"].lower())

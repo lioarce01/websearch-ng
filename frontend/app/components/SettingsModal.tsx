@@ -11,7 +11,41 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { type LLMConfig, PROVIDERS } from "../hooks/useSettings";
 
-interface Model { id: string; label: string }
+interface Pricing {
+  type: "free" | "free_tier" | "paid" | "unknown";
+  prompt?: string;
+  completion?: string;
+}
+
+interface Model { id: string; label: string; pricing?: Pricing }
+
+function PricingBadge({ pricing }: { pricing?: Pricing }) {
+  if (!pricing) return null;
+  if (pricing.type === "free") {
+    return (
+      <span className="shrink-0 text-[10px] font-medium text-emerald-400/70 bg-emerald-400/8
+                       border border-emerald-400/15 rounded-full px-1.5 py-px leading-none">
+        Free
+      </span>
+    );
+  }
+  if (pricing.type === "free_tier") {
+    return (
+      <span className="shrink-0 text-[10px] font-medium text-emerald-400/60 bg-emerald-400/6
+                       border border-emerald-400/12 rounded-full px-1.5 py-px leading-none">
+        Free tier
+      </span>
+    );
+  }
+  if (pricing.type === "paid" && pricing.prompt) {
+    return (
+      <span className="shrink-0 text-[10px] text-foreground-muted/40 leading-none">
+        {pricing.prompt}/1M
+      </span>
+    );
+  }
+  return null;
+}
 
 interface SettingsModalProps {
   open: boolean;
@@ -114,7 +148,7 @@ export default function SettingsModal({ open, onClose, config, onSave }: Setting
   };
 
   const modelOptions = models.length
-    ? models.map((m) => ({ value: m.id, label: m.label }))
+    ? models.map((m) => ({ value: m.id, label: m.label, pricing: m.pricing }))
     : null; // null = use draft values as-is (no list to show)
 
   const ModelSelect = ({
@@ -157,7 +191,10 @@ export default function SettingsModal({ open, onClose, config, onSave }: Setting
                 value={m.value}
                 className="focus:bg-surface-alt focus:text-foreground cursor-pointer"
               >
-                {m.label}
+                <span className="flex items-center justify-between gap-3 w-full">
+                  <span className="truncate">{m.label}</span>
+                  <PricingBadge pricing={m.pricing} />
+                </span>
               </SelectItem>
             ))}
           </SelectContent>

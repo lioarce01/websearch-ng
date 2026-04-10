@@ -3,15 +3,11 @@
 import { useRef, useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import SourcesModal from "./SourcesModal";
+import ModelSelector from "./ModelSelector";
+import type { LLMConfig } from "../hooks/useSettings";
 
 export type SearchMode = "search" | "research";
-
-const DOMAIN_GROUPS = [
-  { label: "Academic", key: "academic", domains: ["arxiv.org", "scholar.google.com", "pubmed.ncbi.nlm.nih.gov", "semanticscholar.org"] },
-  { label: "News",     key: "news",     domains: ["reuters.com", "apnews.com", "bbc.com", "theguardian.com"] },
-  { label: "Tech",     key: "tech",     domains: ["github.com", "stackoverflow.com", "docs.python.org", "developer.mozilla.org"] },
-  { label: "Reddit",   key: "reddit",   domains: ["reddit.com"] },
-];
 
 const TIME_RANGES = [
   { value: "",      label: "Anytime"    },
@@ -29,9 +25,11 @@ interface SearchBarProps {
   onModeChange: (mode: SearchMode) => void;
   timeRange: string;
   onTimeRangeChange: (r: string) => void;
-  domainFilter: string;
-  onDomainFilterChange: (d: string) => void;
+  includeDomains: string[];
+  onIncludeDomainsChange: (domains: string[]) => void;
   dropdownPosition?: "up" | "down";
+  config: LLMConfig;
+  onMainModelChange: (id: string) => void;
 }
 
 function Spinner() {
@@ -60,6 +58,15 @@ function CheckIcon() {
   );
 }
 
+function GlobeIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
+  );
+}
+
 export default function SearchBar({
   onSearch,
   loading,
@@ -68,17 +75,20 @@ export default function SearchBar({
   onModeChange,
   timeRange,
   onTimeRangeChange,
-  domainFilter,
-  onDomainFilterChange,
+  includeDomains,
+  onIncludeDomainsChange,
   dropdownPosition = "down",
+  config,
+  onMainModelChange,
 }: SearchBarProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const menuRef  = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
+  const inputRef  = useRef<HTMLInputElement>(null);
+  const menuRef   = useRef<HTMLDivElement>(null);
+  const [open, setOpen]               = useState(false);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
 
   const isResearch   = mode === "research";
   const hasTimeRange = timeRange !== "";
-  const hasDomain    = domainFilter !== "";
+  const hasDomains   = includeDomains.length > 0;
 
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
@@ -103,152 +113,160 @@ export default function SearchBar({
   };
 
   return (
-    <div
-      className="flex flex-col rounded-2xl border border-white/10 bg-surface/80 backdrop-blur-xl
-                 shadow-2xl shadow-black/50 overflow-visible
-                 focus-within:border-white/25 transition-all duration-300"
-    >
-      <form onSubmit={handleSubmit} className="flex flex-col w-full">
+    <>
+      <SourcesModal
+        open={sourcesOpen}
+        onClose={() => setSourcesOpen(false)}
+        domains={includeDomains}
+        onDomainsChange={onIncludeDomainsChange}
+      />
 
-        {/* Input row */}
-        <Input
-          ref={inputRef}
-          name="q"
-          type="text"
-          placeholder="Ask anything..."
-          disabled={loading}
-          autoFocus={autoFocusOnMount}
-          className="border-0 bg-transparent text-foreground placeholder:text-foreground-muted
-                     focus-visible:ring-0 h-12 text-[15px] px-5 rounded-none font-normal"
-        />
+      <div
+        className="flex flex-col rounded-2xl border border-white/10 bg-surface/80 backdrop-blur-xl
+                   shadow-2xl shadow-black/50 overflow-visible
+                   focus-within:border-white/25 transition-all duration-300"
+      >
+        <form onSubmit={handleSubmit} className="flex flex-col w-full">
 
-        {/* Bottom toolbar */}
-        <div className="flex items-center justify-between px-3 pb-3">
-
-          {/* + button with dropdown */}
-          <div className="relative" ref={menuRef}>
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => setOpen((v) => !v)}
-              aria-label="Search options"
-              className="relative w-8 h-8 rounded-lg flex items-center justify-center
-                         text-foreground-muted/60 hover:text-foreground-muted
-                         hover:bg-white/8 transition-colors duration-150
-                         focus:outline-none"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-              {/* Dot indicator when any filter is active */}
-              {(isResearch || hasTimeRange || hasDomain) && (
-                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-white/60" />
-              )}
-            </button>
-
-            {/* Dropdown */}
-            {open && (
-              <div
-                className={`absolute ${dropdownPosition === "up" ? "bottom-full mb-2" : "top-full mt-2"} left-0 w-52
-                           rounded-xl border border-white/10 bg-[#1c1c1c]
-                           shadow-2xl shadow-black/70 z-50 animate-fade-in
-                           max-h-80 overflow-y-auto
-                           [&::-webkit-scrollbar]:w-[3px]
-                           [&::-webkit-scrollbar-track]:bg-transparent
-                           [&::-webkit-scrollbar-thumb]:bg-white/15
-                           [&::-webkit-scrollbar-thumb]:rounded-full
-                           [&::-webkit-scrollbar-thumb:hover]:bg-white/30`}
-              >
-                <div className="px-3 pt-2.5 pb-1">
-                  <span className="text-[10px] font-medium text-foreground-muted/40 uppercase tracking-widest">
-                    Mode
-                  </span>
-                </div>
-                <div className="px-1 pb-1">
-                  <button
-                    type="button"
-                    onClick={() => { onModeChange(isResearch ? "search" : "research"); setOpen(false); }}
-                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg
-                               hover:bg-white/8 transition-colors duration-100"
-                  >
-                    <span className="text-foreground-muted">
-                      <ResearchIcon />
-                    </span>
-                    <span className="flex-1 text-left text-[13px] text-foreground">
-                      Deep Research
-                    </span>
-                    {isResearch && (
-                      <span className="text-white/60">
-                        <CheckIcon />
-                      </span>
-                    )}
-                  </button>
-                </div>
-
-                {/* Time range section */}
-                <div className="mx-3 border-t border-white/8 my-1" />
-                <div className="px-3 pt-1.5 pb-1">
-                  <span className="text-[10px] font-medium text-foreground-muted/40 uppercase tracking-widest">
-                    Time
-                  </span>
-                </div>
-                <div className="px-1 pb-1.5">
-                  {TIME_RANGES.map((tr) => (
-                    <button
-                      key={tr.value}
-                      type="button"
-                      onClick={() => { onTimeRangeChange(tr.value); setOpen(false); }}
-                      className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg
-                                 hover:bg-white/8 transition-colors duration-100"
-                    >
-                      <span className="text-[13px] text-foreground">{tr.label}</span>
-                      {timeRange === tr.value && (
-                        <span className="text-white/60"><CheckIcon /></span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Domain filter section */}
-                <div className="mx-3 border-t border-white/8 my-1" />
-                <div className="px-3 pt-1.5 pb-1">
-                  <span className="text-[10px] font-medium text-foreground-muted/40 uppercase tracking-widest">
-                    Sources
-                  </span>
-                </div>
-                <div className="px-1 pb-1.5">
-                  {DOMAIN_GROUPS.map((g) => (
-                    <button
-                      key={g.key}
-                      type="button"
-                      onClick={() => { onDomainFilterChange(domainFilter === g.key ? "" : g.key); setOpen(false); }}
-                      className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg
-                                 hover:bg-white/8 transition-colors duration-100"
-                    >
-                      <span className="text-[13px] text-foreground">{g.label}</span>
-                      {domainFilter === g.key && (
-                        <span className="text-white/60"><CheckIcon /></span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Search button */}
-          <Button
-            type="submit"
+          {/* Input row */}
+          <Input
+            ref={inputRef}
+            name="q"
+            type="text"
+            placeholder="Ask anything..."
             disabled={loading}
-            className="rounded-xl h-8 px-4 bg-white text-background text-sm font-semibold
-                       hover:bg-white/85 disabled:opacity-40 transition-all duration-200
-                       flex items-center justify-center min-w-[68px]"
-          >
-            {loading ? <Spinner /> : "Search"}
-          </Button>
+            autoFocus={autoFocusOnMount}
+            className="border-0 bg-transparent text-foreground placeholder:text-foreground-muted
+                       focus-visible:ring-0 h-12 text-[15px] px-5 rounded-none font-normal"
+          />
 
-        </div>
-      </form>
-    </div>
+          {/* Bottom toolbar */}
+          <div className="flex items-center justify-between px-3 pb-3">
+
+            {/* Left controls */}
+            <div className="flex items-center gap-1">
+
+              {/* + options dropdown */}
+              <div className="relative" ref={menuRef}>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => setOpen((v) => !v)}
+                  aria-label="Search options"
+                  className="relative w-8 h-8 rounded-lg flex items-center justify-center
+                             text-foreground-muted/60 hover:text-foreground-muted
+                             hover:bg-white/8 transition-colors duration-150 focus:outline-none"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                  {(isResearch || hasTimeRange) && (
+                    <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-white/60" />
+                  )}
+                </button>
+
+                {/* Dropdown — mode + time only */}
+                {open && (
+                  <div
+                    className={`absolute ${dropdownPosition === "up" ? "bottom-full mb-2" : "top-full mt-2"} left-0 w-52
+                               rounded-xl border border-white/10 bg-[#1c1c1c]
+                               shadow-2xl shadow-black/70 z-50 animate-fade-in
+                               [&::-webkit-scrollbar]:w-[3px]
+                               [&::-webkit-scrollbar-track]:bg-transparent
+                               [&::-webkit-scrollbar-thumb]:bg-white/15
+                               [&::-webkit-scrollbar-thumb]:rounded-full
+                               [&::-webkit-scrollbar-thumb:hover]:bg-white/30`}
+                  >
+                    {/* Mode */}
+                    <div className="px-3 pt-2.5 pb-1">
+                      <span className="text-[10px] font-medium text-foreground-muted/40 uppercase tracking-widest">
+                        Mode
+                      </span>
+                    </div>
+                    <div className="px-1 pb-1">
+                      <button
+                        type="button"
+                        onClick={() => { onModeChange(isResearch ? "search" : "research"); setOpen(false); }}
+                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg
+                                   hover:bg-white/8 transition-colors duration-100"
+                      >
+                        <span className="text-foreground-muted"><ResearchIcon /></span>
+                        <span className="flex-1 text-left text-[13px] text-foreground">Deep Research</span>
+                        {isResearch && <span className="text-white/60"><CheckIcon /></span>}
+                      </button>
+                    </div>
+
+                    {/* Time */}
+                    <div className="mx-3 border-t border-white/8 my-1" />
+                    <div className="px-3 pt-1.5 pb-1">
+                      <span className="text-[10px] font-medium text-foreground-muted/40 uppercase tracking-widest">
+                        Time
+                      </span>
+                    </div>
+                    <div className="px-1 pb-2">
+                      {TIME_RANGES.map((tr) => (
+                        <button
+                          key={tr.value}
+                          type="button"
+                          onClick={() => { onTimeRangeChange(tr.value); setOpen(false); }}
+                          className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg
+                                     hover:bg-white/8 transition-colors duration-100"
+                        >
+                          <span className="text-[13px] text-foreground">{tr.label}</span>
+                          {timeRange === tr.value && <span className="text-white/60"><CheckIcon /></span>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Sources button */}
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => setSourcesOpen(true)}
+                aria-label="Search sources"
+                className="relative flex items-center gap-1.5 h-8 px-2.5 rounded-lg
+                           text-foreground-muted/60 hover:text-foreground-muted
+                           hover:bg-white/8 transition-colors duration-150 focus:outline-none"
+              >
+                <GlobeIcon />
+                <span className="text-[12px]">Sources</span>
+                {hasDomains && (
+                  <span className="flex items-center justify-center w-4 h-4 rounded-full
+                                   bg-white/15 text-[10px] font-medium text-foreground/80">
+                    {includeDomains.length}
+                  </span>
+                )}
+              </button>
+
+            </div>
+
+            {/* Right controls: model selector + search */}
+            <div className="flex items-center gap-2">
+              <ModelSelector
+                config={config}
+                onMainModelChange={onMainModelChange}
+                dropdownPosition={dropdownPosition}
+                disabled={loading}
+              />
+
+            {/* Search button */}
+            <Button
+              type="submit"
+              disabled={loading}
+              className="rounded-xl h-8 px-4 bg-white text-background text-sm font-semibold
+                         hover:bg-white/85 disabled:opacity-40 transition-all duration-200
+                         flex items-center justify-center min-w-[68px]"
+            >
+              {loading ? <Spinner /> : "Search"}
+            </Button>
+            </div>
+
+          </div>
+        </form>
+      </div>
+    </>
   );
 }

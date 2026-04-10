@@ -23,14 +23,22 @@ interface Turn {
   sources: Source[];
   suggestions: string[];
   queries: string[];
+  duration?: number; // seconds
+  teaser?: string;   // AI-generated 3-4 sentence summary (research mode)
+  theme?: string;    // AI-generated 3-6 word topic label (research mode)
 }
 
-const DOMAIN_GROUPS = [
-  { label: "Academic", key: "academic", domains: ["arxiv.org", "scholar.google.com", "pubmed.ncbi.nlm.nih.gov", "semanticscholar.org"] },
-  { label: "News",     key: "news",     domains: ["reuters.com", "apnews.com", "bbc.com", "theguardian.com"] },
-  { label: "Tech",     key: "tech",     domains: ["github.com", "stackoverflow.com", "docs.python.org", "developer.mozilla.org"] },
-  { label: "Reddit",   key: "reddit",   domains: ["reddit.com"] },
-];
+function getFavicon(url: string) {
+  try { return `https://www.google.com/s2/favicons?sz=32&domain=${new URL(url).hostname}`; }
+  catch { return ""; }
+}
+
+function formatDuration(seconds: number): string {
+  return seconds >= 60
+    ? `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+    : `${seconds}s`;
+}
+
 
 function QueryPills({ queries }: { queries: string[] }) {
   const [open, setOpen] = useState(false);
@@ -76,8 +84,8 @@ export default function Home() {
   const { config, save: saveConfig } = useSettings();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchMode, setSearchMode]     = useState<SearchMode>("search");
-  const [timeRange, setTimeRange]       = useState<string>("");
-  const [domainFilter, setDomainFilter] = useState<string>("");
+  const [timeRange, setTimeRange]             = useState<string>("");
+  const [includeDomains, setIncludeDomains]   = useState<string[]>([]);
   const [turns, setTurns]               = useState<Turn[]>([]);
   const [loading, setLoading]           = useState(false);
   const [stage, setStage]               = useState<Stage>("rewriting");
@@ -93,6 +101,9 @@ export default function Home() {
   const currentQueryRef   = useRef("");
   const suggestionsRef    = useRef<string[]>([]);
   const queriesRef        = useRef<string[]>([]);
+  const teaserRef         = useRef<string>("");
+  const themeRef          = useRef<string>("");
+  const searchStartRef    = useRef<number>(0);
   const scrollRef         = useRef<HTMLDivElement>(null);
 
   // Resizable artifact panel
@@ -120,9 +131,10 @@ export default function Home() {
 
   const finalize = useCallback(() => {
     const finalAnswer = receivedRef.current;
+    const duration    = searchStartRef.current ? Math.round((Date.now() - searchStartRef.current) / 1000) : undefined;
     setTurns((prev) => [
       ...prev,
-      { query: currentQueryRef.current, answer: finalAnswer, sources: finalSourcesRef.current, suggestions: suggestionsRef.current, queries: queriesRef.current },
+      { query: currentQueryRef.current, answer: finalAnswer, sources: finalSourcesRef.current, suggestions: suggestionsRef.current, queries: queriesRef.current, duration, teaser: teaserRef.current || undefined, theme: themeRef.current || undefined },
     ]);
     setDisplayedAnswer("");
     setStreamSources([]);
@@ -148,6 +160,28 @@ export default function Home() {
   const stopSoftStream = useCallback(() => {
     if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
   }, []);
+
+  const handleNewChat = useCallback(() => {
+    stopSoftStream();
+    receivedRef.current       = "";
+    displayedLenRef.current   = 0;
+    isDoneRef.current         = false;
+    finalSourcesRef.current   = [];
+    suggestionsRef.current    = [];
+    queriesRef.current        = [];
+    teaserRef.current         = "";
+    themeRef.current          = "";
+    currentQueryRef.current   = "";
+    setTurns([]);
+    setLoading(false);
+    setDisplayedAnswer("");
+    setStreamSources([]);
+    setStage("rewriting");
+    setCurrentQuery("");
+    setArtifactOpen(false);
+    setArtifactTurnIndex(null);
+    try { sessionStorage.removeItem("ws_turns"); } catch { /* ignore */ }
+  }, [stopSoftStream]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -218,7 +252,10 @@ export default function Home() {
     finalSourcesRef.current = [];
     suggestionsRef.current  = [];
     queriesRef.current      = [];
-    currentQueryRef.current = query;
+    teaserRef.current       = "";
+    themeRef.current        = "";
+    currentQueryRef.current  = query;
+    searchStartRef.current   = Date.now();
 
     setLoading(true);
     setCurrentQuery(query);
@@ -242,7 +279,7 @@ export default function Home() {
           llm_config: config,
           mode: searchMode,
           time_range: timeRange,
-          include_domains: DOMAIN_GROUPS.find(g => g.key === domainFilter)?.domains ?? [],
+          include_domains: includeDomains,
         }),
       });
       if (!res.ok || !res.body) throw new Error("Search request failed");
@@ -273,6 +310,7 @@ export default function Home() {
           if (event === "token")       { receivedRef.current += payload.text; }
           if (event === "queries")     { queriesRef.current = payload.queries ?? []; }
           if (event === "suggestions") { suggestionsRef.current = payload.questions ?? []; }
+          if (event === "teaser")      { teaserRef.current = payload.text ?? ""; themeRef.current = payload.theme ?? ""; }
           if (event === "done")        { isDoneRef.current = true; }
           if (event === "error")       { console.error("[search error]", payload.message); stopSoftStream(); setLoading(false); }
         }
@@ -288,10 +326,24 @@ export default function Home() {
 
       {/* ── TOP NAVBAR ── */}
       <header className="shrink-0 flex items-center justify-between px-4 h-11 border-b border-white/8 z-20">
-        {/* Left: wordmark */}
-        <span className="text-[13px] font-semibold tracking-tight text-foreground/60 select-none">
-          Search
-        </span>
+        {/* Left: wordmark + new chat */}
+        <div className="flex items-center gap-3">
+          <span className="text-[13px] font-semibold tracking-tight text-foreground/60 select-none">
+            Search
+          </span>
+          {hasConversation && (
+            <button
+              onClick={handleNewChat}
+              className="flex items-center gap-1.5 text-[12px] text-foreground-muted/50
+                         hover:text-foreground-muted transition-colors duration-150"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              New chat
+            </button>
+          )}
+        </div>
 
         {/* Right: provider badge + settings */}
         <div className="flex items-center gap-2">
@@ -332,7 +384,7 @@ export default function Home() {
                 AI-powered answers with sources
               </p>
             </div>
-            <div className="w-full animate-slide-up">
+            <div className="w-full flex flex-col gap-2 animate-slide-up">
               <SearchBar
                 onSearch={handleSearch}
                 loading={loading}
@@ -340,9 +392,39 @@ export default function Home() {
                 onModeChange={setSearchMode}
                 timeRange={timeRange}
                 onTimeRangeChange={setTimeRange}
-                domainFilter={domainFilter}
-                onDomainFilterChange={setDomainFilter}
+                includeDomains={includeDomains}
+                onIncludeDomainsChange={setIncludeDomains}
+                config={config}
+                onMainModelChange={(id) => saveConfig({ ...config, mainModel: id })}
               />
+              {/* Active domain chips below hero search bar */}
+              {includeDomains.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap px-1">
+                  <span className="text-[10px] text-foreground-muted/35 uppercase tracking-widest">Searching in</span>
+                  {includeDomains.map((d) => (
+                    <span
+                      key={d}
+                      className="flex items-center gap-1 text-[11px] text-foreground/60
+                                 bg-white/5 border border-white/8 rounded-full px-2.5 py-0.5"
+                    >
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-50">
+                        <circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                      </svg>
+                      {d}
+                      <button
+                        type="button"
+                        onClick={() => setIncludeDomains(includeDomains.filter((x) => x !== d))}
+                        aria-label={`Remove ${d}`}
+                        className="text-foreground-muted/30 hover:text-foreground-muted transition-colors leading-none ml-0.5"
+                      >
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                          <path d="M18 6 6 18M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -370,29 +452,59 @@ export default function Home() {
 
                     {/* In research mode: report-ready card instead of inline answer */}
                     {searchMode === "research" ? (
-                      <button
-                        type="button"
-                        onClick={() => openArtifact(i)}
-                        className="flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left
-                                   border border-white/8 bg-surface/40 hover:bg-surface/70
-                                   hover:border-white/15 transition-all duration-150 cursor-pointer
-                                   animate-fade-in-up"
-                      >
-                        <div className="shrink-0 w-7 h-7 rounded-lg bg-white/6 flex items-center justify-center">
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-foreground-muted/60">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-                          </svg>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[12px] font-medium text-foreground/70">Research report generated</p>
-                          <p className="text-[11px] text-foreground-muted/50 mt-0.5 truncate">
-                            {turn.answer.replace(/[#*`_~>[\]]/g, "").trim().slice(0, 80)}…
+                      <div className="flex flex-col gap-2 animate-fade-in-up">
+                        <button
+                          type="button"
+                          onClick={() => openArtifact(i)}
+                          className="flex flex-col gap-3 px-5 py-4 rounded-xl w-full text-left
+                                     border border-white/8 bg-surface/40 hover:bg-surface/70
+                                     hover:border-white/15 transition-all duration-150"
+                        >
+                          {/* Title row */}
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-[14px] font-semibold text-foreground/95 leading-snug">
+                              {turn.theme ?? turn.query}
+                            </p>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-foreground-muted/30 shrink-0">
+                              <path d="M5 12h14M12 5l7 7-7 7"/>
+                            </svg>
+                          </div>
+
+                          {/* Meta row: favicons + stats */}
+                          <div className="flex items-center gap-2">
+                            {/* Favicon bubbles */}
+                            {turn.sources.length > 0 && (
+                              <div className="flex -space-x-1.5 shrink-0">
+                                {turn.sources.slice(0, 5).map((s) => (
+                                  <div key={s.index}
+                                       className="w-5 h-5 rounded-full border border-surface bg-surface-alt
+                                                  overflow-hidden flex items-center justify-center">
+                                    <img
+                                      src={getFavicon(s.url)}
+                                      width={12} height={12}
+                                      className="object-contain"
+                                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                                      alt=""
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <span className="text-[12px] text-foreground-muted/60">
+                              Research complete
+                              {" · "}{turn.sources.length} source{turn.sources.length !== 1 ? "s" : ""}
+                              {turn.duration ? ` · ${formatDuration(turn.duration)}` : ""}
+                            </span>
+                          </div>
+                        </button>
+
+                        {/* Teaser */}
+                        {turn.teaser && (
+                          <p className="text-[13px] text-foreground-muted/70 leading-relaxed px-1">
+                            {turn.teaser}
                           </p>
-                        </div>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-foreground-muted/30 shrink-0">
-                          <path d="M5 12h14M12 5l7 7-7 7"/>
-                        </svg>
-                      </button>
+                        )}
+                      </div>
                     ) : (
                       <AnswerStream answer={turn.answer} loading={false} status="" sources={turn.sources} query={turn.query} mode={searchMode} />
                     )}
@@ -468,7 +580,36 @@ export default function Home() {
             {/* Gradient + floating search bar — absolute within the left column */}
             <div className="absolute bottom-0 left-0 right-0 pointer-events-none h-44 z-10
                             bg-gradient-to-t from-background via-background/85 to-transparent" />
-            <div className="absolute bottom-0 left-0 right-0 flex justify-center pb-7 px-4 pointer-events-none z-10">
+            <div className="absolute bottom-0 left-0 right-0 flex flex-col items-center pb-7 px-4 pointer-events-none z-10 gap-2">
+              {/* Active domain chips */}
+              {includeDomains.length > 0 && (
+                <div className="pointer-events-auto flex items-center gap-1.5 flex-wrap justify-center">
+                  <span className="text-[10px] text-foreground-muted/35 uppercase tracking-widest">Searching in</span>
+                  {includeDomains.map((d) => (
+                    <span
+                      key={d}
+                      className="flex items-center gap-1 text-[11px] text-foreground/60
+                                 bg-white/5 border border-white/8 rounded-full px-2.5 py-0.5"
+                    >
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-50">
+                        <circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                      </svg>
+                      {d}
+                      <button
+                        type="button"
+                        onClick={() => setIncludeDomains(includeDomains.filter((x) => x !== d))}
+                        aria-label={`Remove ${d}`}
+                        className="text-foreground-muted/30 hover:text-foreground-muted transition-colors leading-none ml-0.5"
+                      >
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                          <path d="M18 6 6 18M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
               <div className={`w-full pointer-events-auto animate-slide-up ${showArtifact ? "max-w-xl" : "max-w-2xl"}`}>
                 <SearchBar
                   onSearch={handleSearch}
@@ -478,9 +619,11 @@ export default function Home() {
                   onModeChange={setSearchMode}
                   timeRange={timeRange}
                   onTimeRangeChange={setTimeRange}
-                  domainFilter={domainFilter}
-                  onDomainFilterChange={setDomainFilter}
+                  includeDomains={includeDomains}
+                  onIncludeDomainsChange={setIncludeDomains}
                   dropdownPosition="up"
+                  config={config}
+                  onMainModelChange={(id) => saveConfig({ ...config, mainModel: id })}
                 />
               </div>
             </div>
