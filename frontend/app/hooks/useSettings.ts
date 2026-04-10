@@ -8,6 +8,8 @@ export interface LLMConfig {
   fastModel: string;
   mainModel: string;
   rememberKey: boolean; // if true, key stored in localStorage; else sessionStorage only
+  maxSources: number;   // how many sources to include in synthesis
+  contentCap: number;   // chars of content to keep per source
 }
 
 export interface ProviderDef {
@@ -16,6 +18,8 @@ export interface ProviderDef {
   mainModel: string;
   keyPlaceholder: string;
   keyDocsUrl: string;
+  maxSources: number;
+  contentCap: number;
 }
 
 export const PROVIDERS: Record<string, ProviderDef> = {
@@ -25,6 +29,8 @@ export const PROVIDERS: Record<string, ProviderDef> = {
     mainModel: "groq/llama-3.3-70b-versatile",
     keyPlaceholder: "gsk_...",
     keyDocsUrl: "https://console.groq.com/keys",
+    maxSources: 8,    // 12k TPM free-tier limit — conservative
+    contentCap: 2000,
   },
   openai: {
     label: "OpenAI",
@@ -32,6 +38,8 @@ export const PROVIDERS: Record<string, ProviderDef> = {
     mainModel: "gpt-4o",
     keyPlaceholder: "sk-...",
     keyDocsUrl: "https://platform.openai.com/api-keys",
+    maxSources: 15,
+    contentCap: 4000,
   },
   anthropic: {
     label: "Anthropic",
@@ -39,6 +47,8 @@ export const PROVIDERS: Record<string, ProviderDef> = {
     mainModel: "claude-sonnet-4-6",
     keyPlaceholder: "sk-ant-...",
     keyDocsUrl: "https://console.anthropic.com/keys",
+    maxSources: 20,   // 200k context window — go deep
+    contentCap: 5000,
   },
   openrouter: {
     label: "OpenRouter",
@@ -46,6 +56,8 @@ export const PROVIDERS: Record<string, ProviderDef> = {
     mainModel: "openrouter/anthropic/claude-sonnet-4-6",
     keyPlaceholder: "sk-or-...",
     keyDocsUrl: "https://openrouter.ai/keys",
+    maxSources: 15,
+    contentCap: 4000,
   },
   ollama: {
     label: "Ollama (local)",
@@ -53,6 +65,8 @@ export const PROVIDERS: Record<string, ProviderDef> = {
     mainModel: "ollama/llama3.2",
     keyPlaceholder: "No key needed",
     keyDocsUrl: "https://ollama.com",
+    maxSources: 10,
+    contentCap: 3000,
   },
 };
 
@@ -67,6 +81,8 @@ const DEFAULT_CONFIG: LLMConfig = {
   fastModel:   PROVIDERS.groq.fastModel,
   mainModel:   PROVIDERS.groq.mainModel,
   rememberKey: false,
+  maxSources:  PROVIDERS.groq.maxSources,
+  contentCap:  PROVIDERS.groq.contentCap,
 };
 
 function loadConfig(): LLMConfig {

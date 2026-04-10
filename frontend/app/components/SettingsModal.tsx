@@ -84,7 +84,15 @@ export default function SettingsModal({ open, onClose, config, onSave }: Setting
   const handleProviderChange = (p: string | null) => {
     if (!p) return;
     const def = PROVIDERS[p];
-    setDraft({ provider: p, apiKey: "", fastModel: def.fastModel, mainModel: def.mainModel, rememberKey: draft.rememberKey });
+    setDraft({
+      provider: p,
+      apiKey: "",
+      fastModel: def.fastModel,
+      mainModel: def.mainModel,
+      rememberKey: draft.rememberKey,
+      maxSources: def.maxSources,
+      contentCap: def.contentCap,
+    });
     setModels([]);
     setFetchError("");
   };
@@ -271,6 +279,43 @@ export default function SettingsModal({ open, onClose, config, onSave }: Setting
             value={draft.fastModel}
             onChange={(v) => v && setDraft({ ...draft, fastModel: v })}
           />
+
+          {/* Search depth */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-foreground-muted uppercase tracking-wider">
+              Search depth
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <span className="text-[11px] text-foreground-muted/60">Max sources</span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={draft.maxSources}
+                  onChange={(e) => setDraft({ ...draft, maxSources: Math.max(1, Math.min(30, Number(e.target.value))) })}
+                  className="bg-surface-alt border-white/10 text-foreground rounded-xl
+                             focus-visible:ring-0 focus-visible:border-white/25 h-9 text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <span className="text-[11px] text-foreground-muted/60">Chars per source</span>
+                <Input
+                  type="number"
+                  min={500}
+                  max={10000}
+                  step={500}
+                  value={draft.contentCap}
+                  onChange={(e) => setDraft({ ...draft, contentCap: Math.max(500, Math.min(10000, Number(e.target.value))) })}
+                  className="bg-surface-alt border-white/10 text-foreground rounded-xl
+                             focus-visible:ring-0 focus-visible:border-white/25 h-9 text-sm"
+                />
+              </div>
+            </div>
+            <p className="text-[11px] text-foreground-muted/50 leading-relaxed">
+              Higher values give richer answers but use more context. Groq free tier works best at 8 sources / 2000 chars.
+            </p>
+          </div>
 
           {/* Remember key toggle */}
           {!isOllama && (

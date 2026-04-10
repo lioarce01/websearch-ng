@@ -1,12 +1,14 @@
 from pipeline.state import SearchState, Source
 
 
-def reranker(state: SearchState, mode: str = "search", existing_urls: set | None = None) -> dict:
+def reranker(
+    state: SearchState,
+    mode: str = "search",
+    existing_urls: set | None = None,
+    max_sources: int = 8,
+    content_cap: int = 2000,
+) -> dict:
     raw = state["raw_results"]
-
-    # Research: 8 sources × 1500 chars ≈ 4k source tokens + ~1.5k prompt overhead → ~6k total, fits Groq 12k TPM
-    max_sources = 8 if mode == "research" else 8
-    content_cap = 1500 if mode == "research" else 2000
 
     # Sort by Tavily relevance score descending
     ranked = sorted(raw, key=lambda r: r.get("score", 0), reverse=True)

@@ -42,6 +42,8 @@ class LLMConfig(BaseModel):
     apiKey:     str = ""
     fastModel:  str = ""
     mainModel:  str = ""
+    maxSources: int = 8
+    contentCap: int = 2000
 
 
 class SearchRequest(BaseModel):
@@ -64,9 +66,11 @@ def _resolve_models(llm_config: LLMConfig) -> tuple[str, str, str | None]:
 
 
 async def _search_generator(query: str, history: list[HistoryTurn], llm_config: LLMConfig, mode: str = "search"):
-    print(f"[search] mode={mode!r} query={query[:60]!r}")
+    print(f"[search] mode={mode!r} max_sources={llm_config.maxSources} content_cap={llm_config.contentCap} query={query[:60]!r}")
     try:
         fast_model, main_model, api_key = _resolve_models(llm_config)
+        max_sources = llm_config.maxSources
+        content_cap = llm_config.contentCap
 
         state: SearchState = {
             "query": query,
@@ -88,7 +92,7 @@ async def _search_generator(query: str, history: list[HistoryTurn], llm_config: 
         state.update(await extractor(state, mode=mode))
 
         yield _sse("status", {"message": "Ranking results..."})
-        update = reranker(state, mode=mode)
+        update = reranker(state, mode=mode, max_sources=max_sources, content_cap=content_cap)
         state["sources"] = update.get("sources", [])
         state["status"]  = update.get("status", state["status"])
 
@@ -111,7 +115,7 @@ async def _search_generator(query: str, history: list[HistoryTurn], llm_config: 
                 merged_state: SearchState = {**state, "raw_results": merged_raw}
 
                 yield _sse("status", {"message": "Ranking results..."})
-                round2_update = reranker(merged_state, mode=mode, existing_urls=existing_urls)
+                round2_update = reranker(merged_state, mode=mode, existing_urls=existing_urls, max_sources=max_sources, content_cap=content_cap)
                 # Append new unique sources (already deduped inside reranker)
                 new_sources = round2_update.get("sources", [])
                 # Re-index combined sources

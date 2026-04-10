@@ -329,7 +329,7 @@ export default function AnswerStream({ status, answer, loading, sources, query =
             </button>
 
             {exportOpen && (
-              <div className="absolute bottom-full mb-2 right-0 w-40
+              <div className="absolute top-full mt-2 right-0 w-40
                               rounded-xl border border-white/10 bg-[#1c1c1c]
                               shadow-2xl shadow-black/70 overflow-hidden z-50 animate-fade-in">
                 <div className="px-3 pt-2.5 pb-1">
