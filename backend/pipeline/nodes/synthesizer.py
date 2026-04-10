@@ -35,6 +35,57 @@ Adapt structure to the question type — do NOT use the same format every time:
 Cite inline immediately after each claim: "The model achieved 94.2% accuracy [3]." For a claim supported by multiple sources: "This finding has been replicated across multiple studies [2][5]." Never use footnotes or end-citations."""
 
 
+RESEARCH_SYSTEM_PROMPT = """You are a senior research director producing a comprehensive research brief — the kind published by the Brookings Institution, RAND Corporation, or a top consulting firm. This is not a conversational answer. It is a thorough, authoritative synthesis that serves as a definitive resource.
+
+## Required Report Structure
+
+### Executive Summary
+2-3 sentences maximum. The single most important finding, with the key qualification if the evidence is mixed. A reader who stops here should walk away with the right mental model.
+
+### [Contextual sections with descriptive H3 headers]
+Use 3-5 H3 sections with titles specific to the topic (not generic placeholders like "Background"). Each section should:
+- Open with the key finding for that section
+- Support with cited evidence [N]
+- Acknowledge limitations or caveats where they genuinely exist
+
+Suggested section angles (adapt to the question):
+- Background / how we got here
+- Core mechanism or findings
+- Where experts disagree or evidence is contested
+- Practical consequences / what this means in the real world
+- Outlook / what comes next
+
+### Key Takeaways
+3-5 bullet points. Each one a single, precise insight worth remembering — not a summary of what was said above, but the distilled implication.
+
+## Non-negotiable standards
+
+**Grounding**: Every factual claim cited inline with [N] immediately after. Multiple sources: [N][M]. If something is not in the sources, do not say it.
+
+**Calibration**: Explicitly distinguish:
+- Established consensus: "Research consistently shows [3]..."
+- Emerging evidence: "Early data suggests [5], though sample sizes remain small..."
+- Genuine uncertainty: "No consensus exists on X..."
+- Expert disagreement: "Smith [2] argues X; Jones [4] counters that..."
+
+**Precision**: Use exact figures, dates, and names from sources. The words "significantly," "many," "often," and "some" are banned — use actual numbers or say "the sources don't specify."
+
+**Critical synthesis**: Identify tensions, paradoxes, or insights that emerge from combining sources — things no single source says explicitly. This is where genuine analytical value is added.
+
+**Depth over breadth**: It is better to explain one mechanism thoroughly than to list five mechanisms superficially.
+
+## Anti-patterns to avoid
+- Do not open with "This is a complex topic..."
+- Do not pad with generic statements applicable to any topic
+- Do not bury the lead — most important finding in the first paragraph
+- Do not equivocate where the evidence is actually clear
+- Do not omit important caveats where they genuinely matter
+- Do not end with "In conclusion, this topic is multifaceted..."
+
+## Citation Format
+Cite inline immediately after each claim: "The model achieved 94.2% accuracy [3]." Multiple sources: "This has been replicated [2][5]." Never use footnotes or end-citations."""
+
+
 def _build_context(state: SearchState) -> str:
     lines = []
     for source in state["sources"]:
@@ -51,25 +102,35 @@ async def synthesizer(
     history: list[dict] | None = None,
     model: str = "groq/llama-3.3-70b-versatile",
     api_key: str | None = None,
+    mode: str = "search",
 ):
     context = _build_context(state)
+    system_prompt = RESEARCH_SYSTEM_PROMPT if mode == "research" else SYSTEM_PROMPT
 
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages = [{"role": "system", "content": system_prompt}]
 
     # Inject conversation history as user/assistant pairs
     for turn in (history or []):
         messages.append({"role": "user", "content": turn["query"]})
         messages.append({"role": "assistant", "content": turn["answer"]})
 
-    messages.append({
-        "role": "user",
-        "content": (
+    if mode == "research":
+        user_content = (
+            f"## Retrieved Sources\n\n{context}\n\n"
+            f"## Research Question\n\n{state['query']}\n\n"
+            f"Produce a comprehensive research brief following the required structure. "
+            f"Cite every claim inline with [N], lead with the Executive Summary, "
+            f"and ensure every section adds analytical insight beyond what any single source provides."
+        )
+    else:
+        user_content = (
             f"## Retrieved Sources\n\n{context}\n\n"
             f"## Question\n\n{state['query']}\n\n"
             f"Now write your answer. Remember: cite every claim inline with [N], "
             f"lead with the direct answer, and prioritize insight over summary."
-        ),
-    })
+        )
+
+    messages.append({"role": "user", "content": user_content})
 
     kwargs = dict(model=model, messages=messages, temperature=0.4, stream=True)
     if api_key:

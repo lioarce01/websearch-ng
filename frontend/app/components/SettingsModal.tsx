@@ -81,9 +81,10 @@ export default function SettingsModal({ open, onClose, config, onSave }: Setting
     }
   }, [open, config]);
 
-  const handleProviderChange = (p: string) => {
+  const handleProviderChange = (p: string | null) => {
+    if (!p) return;
     const def = PROVIDERS[p];
-    setDraft({ provider: p, apiKey: "", fastModel: def.fastModel, mainModel: def.mainModel });
+    setDraft({ provider: p, apiKey: "", fastModel: def.fastModel, mainModel: def.mainModel, rememberKey: draft.rememberKey });
     setModels([]);
     setFetchError("");
   };
@@ -115,7 +116,7 @@ export default function SettingsModal({ open, onClose, config, onSave }: Setting
     sublabel,
   }: {
     value: string;
-    onChange: (v: string) => void;
+    onChange: (v: string | null) => void;
     label: string;
     sublabel: string;
   }) => (
@@ -141,7 +142,7 @@ export default function SettingsModal({ open, onClose, config, onSave }: Setting
           )}
         </SelectTrigger>
         {modelOptions && (
-          <SelectContent className="bg-surface border-white/10 text-foreground rounded-xl max-h-60">
+          <SelectContent alignItemWithTrigger={false}className="bg-surface border-white/10 text-foreground rounded-xl max-h-60">
             {modelOptions.map((m) => (
               <SelectItem
                 key={m.value}
@@ -190,7 +191,7 @@ export default function SettingsModal({ open, onClose, config, onSave }: Setting
               >
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-surface border-white/10 text-foreground rounded-xl">
+              <SelectContent alignItemWithTrigger={false}className="bg-surface border-white/10 text-foreground rounded-xl">
                 {Object.entries(PROVIDERS).map(([key, def]) => (
                   <SelectItem
                     key={key}
@@ -260,7 +261,7 @@ export default function SettingsModal({ open, onClose, config, onSave }: Setting
             label="Main model"
             sublabel="answers"
             value={draft.mainModel}
-            onChange={(v) => setDraft({ ...draft, mainModel: v })}
+            onChange={(v) => v && setDraft({ ...draft, mainModel: v })}
           />
 
           {/* Fast model */}
@@ -268,7 +269,7 @@ export default function SettingsModal({ open, onClose, config, onSave }: Setting
             label="Fast model"
             sublabel="query rewriting"
             value={draft.fastModel}
-            onChange={(v) => setDraft({ ...draft, fastModel: v })}
+            onChange={(v) => v && setDraft({ ...draft, fastModel: v })}
           />
 
           {/* Remember key toggle */}

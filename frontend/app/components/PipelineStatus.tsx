@@ -1,12 +1,13 @@
 "use client";
 
-export type Stage = "rewriting" | "searching" | "extracting" | "ranking" | "generating" | "done";
+export type Stage = "rewriting" | "searching" | "extracting" | "ranking" | "analyzing" | "generating" | "done";
 
 const STAGE_LABEL: Record<Stage, string> = {
   rewriting:  "Rewriting query",
   searching:  "Searching the web",
   extracting: "Extracting content",
   ranking:    "Ranking results",
+  analyzing:  "Analyzing gaps",
   generating: "Generating answer",
   done:       "",
 };

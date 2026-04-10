@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import SearchBar from "./components/SearchBar";
+import SearchBar, { type SearchMode } from "./components/SearchBar";
 import AnswerStream from "./components/AnswerStream";
 import SourcesList from "./components/SourcesList";
 import PipelineStatus, { type Stage } from "./components/PipelineStatus";
@@ -29,12 +29,15 @@ const STATUS_TO_STAGE: Record<string, Stage> = {
   "Searching the web...":  "searching",
   "Extracting content...": "extracting",
   "Ranking results...":    "ranking",
+  "Analyzing gaps...":     "analyzing",
+  "Deep searching...":     "searching",
   "Generating answer...":  "generating",
 };
 
 export default function Home() {
   const { config, save: saveConfig } = useSettings();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchMode, setSearchMode]     = useState<SearchMode>("search");
   const [turns, setTurns]               = useState<Turn[]>([]);
   const [loading, setLoading]           = useState(false);
   const [stage, setStage]               = useState<Stage>("rewriting");
@@ -115,7 +118,7 @@ export default function Home() {
       const res = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, history, llm_config: config }),
+        body: JSON.stringify({ query, history, llm_config: config, mode: searchMode }),
       });
       if (!res.ok || !res.body) throw new Error("Search request failed");
 
@@ -144,7 +147,7 @@ export default function Home() {
           if (event === "sources") { finalSourcesRef.current = payload.sources; setStreamSources(payload.sources); }
           if (event === "token")   { receivedRef.current += payload.text; }
           if (event === "done")    { isDoneRef.current = true; }
-          if (event === "error")   { stopSoftStream(); setLoading(false); }
+          if (event === "error")   { console.error("[search error]", payload.message); stopSoftStream(); setLoading(false); }
         }
       }
     } catch {
@@ -196,7 +199,12 @@ export default function Home() {
               </p>
             </div>
             <div className="w-full animate-slide-up">
-              <SearchBar onSearch={handleSearch} loading={loading} />
+              <SearchBar
+                onSearch={handleSearch}
+                loading={loading}
+                mode={searchMode}
+                onModeChange={setSearchMode}
+              />
             </div>
           </div>
         </div>
@@ -214,7 +222,7 @@ export default function Home() {
                   {turn.query}
                 </p>
                 <SourcesList sources={turn.sources} />
-                <AnswerStream answer={turn.answer} loading={false} status="" sources={turn.sources} />
+                <AnswerStream answer={turn.answer} loading={false} status="" sources={turn.sources} query={turn.query} />
               </div>
             ))}
 
@@ -245,7 +253,13 @@ export default function Home() {
                           bg-gradient-to-t from-background via-background/85 to-transparent" />
           <div className="absolute bottom-0 left-0 right-0 flex justify-center pb-7 px-4 pointer-events-none">
             <div className="w-full max-w-2xl pointer-events-auto animate-slide-up">
-              <SearchBar onSearch={handleSearch} loading={loading} autoFocusOnMount={false} />
+              <SearchBar
+                onSearch={handleSearch}
+                loading={loading}
+                autoFocusOnMount={false}
+                mode={searchMode}
+                onModeChange={setSearchMode}
+              />
             </div>
           </div>
         </>

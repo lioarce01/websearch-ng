@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Separator } from "@/components/ui/separator";
@@ -17,6 +17,48 @@ interface AnswerStreamProps {
   answer: string;
   loading: boolean;
   sources: Source[];
+  query?: string;
+}
+
+type ExportFormat = { label: string; ext: string; mime: string };
+
+const EXPORT_FORMATS: ExportFormat[] = [
+  { label: "Markdown",   ext: "md",  mime: "text/markdown;charset=utf-8" },
+  { label: "Plain text", ext: "txt", mime: "text/plain;charset=utf-8"    },
+];
+
+function buildMarkdown(query: string, answer: string, sources: Source[]): string {
+  const sourcesList = sources.map((s) => `${s.index}. [${s.title}](${s.url})`).join("\n");
+  return [`# ${query}`, "", answer, "", "---", "", "## Sources", "", sourcesList].join("\n");
+}
+
+function buildPlainText(query: string, answer: string, sources: Source[]): string {
+  const stripped = answer.replace(/\[(\d+)\]/g, "[$1]").replace(/[#*`_~>]/g, "").replace(/\n{3,}/g, "\n\n");
+  const sourcesList = sources.map((s) => `[${s.index}] ${s.title} — ${s.url}`).join("\n");
+  return [`${query}`, "", "=".repeat(query.length), "", stripped, "", "Sources", "-------", sourcesList].join("\n");
+}
+
+function getContent(fmt: ExportFormat, query: string, answer: string, sources: Source[]): string {
+  if (fmt.ext === "txt") return buildPlainText(query, answer, sources);
+  return buildMarkdown(query, answer, sources);
+}
+
+function DownloadIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  );
+}
+
+function ChevronIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
 }
 
 /** Inline citation badge [N] → styled clickable link */
@@ -219,8 +261,36 @@ function makeComponents(sources: Source[]) {
   };
 }
 
-export default function AnswerStream({ status, answer, loading, sources }: AnswerStreamProps) {
+export default function AnswerStream({ status, answer, loading, sources, query = "" }: AnswerStreamProps) {
+  const [exportOpen, setExportOpen]   = useState(false);
+  const [downloaded, setDownloaded]   = useState(false);
+  const exportRef                     = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) setExportOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setExportOpen(false); };
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onMouseDown); document.removeEventListener("keydown", onKey); };
+  }, []);
+
   if (!loading && !answer) return null;
+
+  const handleExport = (fmt: ExportFormat) => {
+    const content = getContent(fmt, query, answer, sources);
+    const blob = new Blob([content], { type: fmt.mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(query || "research").slice(0, 60).replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.${fmt.ext}`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setExportOpen(false);
+    setDownloaded(true);
+    setTimeout(() => setDownloaded(false), 2000);
+  };
 
   return (
     <div className="w-full space-y-4 animate-fade-in-up">
@@ -241,6 +311,49 @@ export default function AnswerStream({ status, answer, loading, sources }: Answe
           {loading && (
             <span className="inline-block w-0.5 h-4 bg-foreground-muted animate-pulse ml-0.5 align-middle rounded-full" />
           )}
+        </div>
+      )}
+
+      {/* Export dropdown — only when answer is complete */}
+      {!loading && answer && (
+        <div className="flex justify-end pt-1">
+          <div className="relative" ref={exportRef}>
+            <button
+              onClick={() => setExportOpen((v) => !v)}
+              className="flex items-center gap-1.5 text-[11px] text-foreground-muted/50
+                         hover:text-foreground-muted transition-colors duration-150 cursor-pointer"
+            >
+              <DownloadIcon />
+              {downloaded ? "Downloaded" : "Export"}
+              <ChevronIcon />
+            </button>
+
+            {exportOpen && (
+              <div className="absolute bottom-full mb-2 right-0 w-40
+                              rounded-xl border border-white/10 bg-[#1c1c1c]
+                              shadow-2xl shadow-black/70 overflow-hidden z-50 animate-fade-in">
+                <div className="px-3 pt-2.5 pb-1">
+                  <span className="text-[10px] font-medium text-foreground-muted/40 uppercase tracking-widest">
+                    Export as
+                  </span>
+                </div>
+                <div className="px-1 pb-1.5">
+                  {EXPORT_FORMATS.map((fmt) => (
+                    <button
+                      key={fmt.ext}
+                      type="button"
+                      onClick={() => handleExport(fmt)}
+                      className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg
+                                 hover:bg-white/8 transition-colors duration-100 cursor-pointer"
+                    >
+                      <span className="text-[11px] font-mono text-foreground-muted/60 w-6">.{fmt.ext}</span>
+                      <span className="text-[13px] text-foreground">{fmt.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

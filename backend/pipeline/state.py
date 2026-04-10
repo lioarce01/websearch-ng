@@ -17,3 +17,4 @@ class SearchState(TypedDict):
     sources: Annotated[list[Source], operator.add]  # ranked, indexed sources
     answer: str                                      # final synthesized answer
     status: str                                      # current pipeline stage label
+    mode: str                                        # "search" | "research"

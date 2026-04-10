@@ -1,13 +1,17 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+
+export type SearchMode = "search" | "research";
 
 interface SearchBarProps {
   onSearch: (query: string) => void;
   loading: boolean;
   autoFocusOnMount?: boolean;
+  mode: SearchMode;
+  onModeChange: (mode: SearchMode) => void;
 }
 
 function Spinner() {
@@ -19,8 +23,48 @@ function Spinner() {
   );
 }
 
-export default function SearchBar({ onSearch, loading, autoFocusOnMount = true }: SearchBarProps) {
+function ResearchIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="7" />
+      <path d="m21 21-4.35-4.35M11 8v6M8 11h6" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
+export default function SearchBar({
+  onSearch,
+  loading,
+  autoFocusOnMount = true,
+  mode,
+  onModeChange,
+}: SearchBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const menuRef  = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+
+  const isResearch = mode === "research";
+
+  useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -33,12 +77,13 @@ export default function SearchBar({ onSearch, loading, autoFocusOnMount = true }
 
   return (
     <div
-      className="flex rounded-2xl border border-white/10 bg-surface/80 backdrop-blur-xl
-                 shadow-2xl shadow-black/50 overflow-hidden
-                 focus-within:border-white/25
-                 transition-all duration-300"
+      className="flex flex-col rounded-2xl border border-white/10 bg-surface/80 backdrop-blur-xl
+                 shadow-2xl shadow-black/50 overflow-visible
+                 focus-within:border-white/25 transition-all duration-300"
     >
-      <form onSubmit={handleSubmit} className="flex w-full">
+      <form onSubmit={handleSubmit} className="flex flex-col w-full">
+
+        {/* Input row */}
         <Input
           ref={inputRef}
           name="q"
@@ -46,19 +91,77 @@ export default function SearchBar({ onSearch, loading, autoFocusOnMount = true }
           placeholder="Ask anything..."
           disabled={loading}
           autoFocus={autoFocusOnMount}
-          className="flex-1 border-0 bg-transparent text-foreground placeholder:text-foreground-muted
-                     focus-visible:ring-0 h-[52px] text-[15px] px-5 rounded-none font-normal"
+          className="border-0 bg-transparent text-foreground placeholder:text-foreground-muted
+                     focus-visible:ring-0 h-12 text-[15px] px-5 rounded-none font-normal"
         />
-        <div className="flex items-center pr-2">
+
+        {/* Bottom toolbar */}
+        <div className="flex items-center justify-between px-3 pb-3">
+
+          {/* + button with dropdown */}
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => setOpen((v) => !v)}
+              aria-label="Search options"
+              className="w-8 h-8 rounded-lg flex items-center justify-center
+                         text-foreground-muted/60 hover:text-foreground-muted
+                         hover:bg-white/8 transition-colors duration-150
+                         focus:outline-none"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </button>
+
+            {/* Dropdown */}
+            {open && (
+              <div
+                className="absolute top-full mt-2 left-0 w-52
+                           rounded-xl border border-white/10 bg-[#1c1c1c]
+                           shadow-2xl shadow-black/70 overflow-hidden z-50 animate-fade-in"
+              >
+                <div className="px-3 pt-2.5 pb-1">
+                  <span className="text-[10px] font-medium text-foreground-muted/40 uppercase tracking-widest">
+                    Mode
+                  </span>
+                </div>
+                <div className="px-1 pb-1.5">
+                  <button
+                    type="button"
+                    onClick={() => { onModeChange(isResearch ? "search" : "research"); setOpen(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg
+                               hover:bg-white/8 transition-colors duration-100"
+                  >
+                    <span className="text-foreground-muted">
+                      <ResearchIcon />
+                    </span>
+                    <span className="flex-1 text-left text-[13px] text-foreground">
+                      Deep Research
+                    </span>
+                    {isResearch && (
+                      <span className="text-white/60">
+                        <CheckIcon />
+                      </span>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Search button */}
           <Button
             type="submit"
             disabled={loading}
-            className="rounded-xl h-9 px-5 bg-white text-background text-sm font-semibold
+            className="rounded-xl h-8 px-4 bg-white text-background text-sm font-semibold
                        hover:bg-white/85 disabled:opacity-40 transition-all duration-200
-                       flex items-center justify-center min-w-[72px]"
+                       flex items-center justify-center min-w-[68px]"
           >
             {loading ? <Spinner /> : "Search"}
           </Button>
+
         </div>
       </form>
     </div>

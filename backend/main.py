@@ -1,8 +1,12 @@
 import json
 import os
+import warnings
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Suppress LiteLLM's internal Pydantic model mismatch warnings (cosmetic upstream bug)
+warnings.filterwarnings("ignore", message="Pydantic serializer warnings", category=UserWarning)
 
 import httpx
 from fastapi import FastAPI
@@ -15,6 +19,7 @@ from pipeline.nodes.searcher import searcher
 from pipeline.nodes.extractor import extractor
 from pipeline.nodes.reranker import reranker
 from pipeline.nodes.synthesizer import synthesizer
+from pipeline.nodes.gap_analyzer import gap_analyzer
 from pipeline.state import SearchState
 
 app = FastAPI(title="AI Search Engine")
@@ -43,6 +48,7 @@ class SearchRequest(BaseModel):
     query:      str
     history:    list[HistoryTurn] = []
     llm_config: LLMConfig = LLMConfig()
+    mode:       str = "search"
 
 
 def _sse(event: str, data: dict) -> str:
@@ -57,7 +63,8 @@ def _resolve_models(llm_config: LLMConfig) -> tuple[str, str, str | None]:
     return fast_model, main_model, api_key
 
 
-async def _search_generator(query: str, history: list[HistoryTurn], llm_config: LLMConfig):
+async def _search_generator(query: str, history: list[HistoryTurn], llm_config: LLMConfig, mode: str = "search"):
+    print(f"[search] mode={mode!r} query={query[:60]!r}")
     try:
         fast_model, main_model, api_key = _resolve_models(llm_config)
 
@@ -68,21 +75,50 @@ async def _search_generator(query: str, history: list[HistoryTurn], llm_config: 
             "sources": [],
             "answer": "",
             "status": "Rewriting query...",
+            "mode": mode,
         }
 
         yield _sse("status", {"message": "Rewriting query..."})
-        state.update(await query_rewriter(state, model=fast_model, api_key=api_key))
+        state.update(await query_rewriter(state, model=fast_model, api_key=api_key, mode=mode))
 
         yield _sse("status", {"message": "Searching the web..."})
-        state.update(await searcher(state))
+        state.update(await searcher(state, mode=mode))
 
         yield _sse("status", {"message": "Extracting content..."})
-        state.update(await extractor(state))
+        state.update(await extractor(state, mode=mode))
 
         yield _sse("status", {"message": "Ranking results..."})
-        update = reranker(state)
-        state["sources"] = state.get("sources", []) + update.get("sources", [])
+        update = reranker(state, mode=mode)
+        state["sources"] = update.get("sources", [])
         state["status"]  = update.get("status", state["status"])
+
+        if mode == "research":
+            # Round 2: gap analysis + follow-up search
+            yield _sse("status", {"message": "Analyzing gaps..."})
+            follow_up_queries = await gap_analyzer(state, model=fast_model, api_key=api_key)
+
+            if follow_up_queries:
+                yield _sse("status", {"message": "Deep searching..."})
+
+                # Run follow-up search with a temporary state slice
+                gap_state: SearchState = {**state, "rewritten_queries": follow_up_queries, "raw_results": []}
+                gap_state.update(await searcher(gap_state, mode=mode))
+                gap_state.update(await extractor(gap_state, mode=mode))
+
+                # Merge follow-up raw results with original, then re-rank deduped
+                existing_urls = {s["url"] for s in state["sources"]}
+                merged_raw = state.get("raw_results", []) + gap_state["raw_results"]
+                merged_state: SearchState = {**state, "raw_results": merged_raw}
+
+                yield _sse("status", {"message": "Ranking results..."})
+                round2_update = reranker(merged_state, mode=mode, existing_urls=existing_urls)
+                # Append new unique sources (already deduped inside reranker)
+                new_sources = round2_update.get("sources", [])
+                # Re-index combined sources
+                all_sources = state["sources"] + new_sources
+                for i, src in enumerate(all_sources, start=1):
+                    src["index"] = i
+                state["sources"] = all_sources
 
         yield _sse("sources", {"sources": state["sources"]})
 
@@ -92,19 +128,21 @@ async def _search_generator(query: str, history: list[HistoryTurn], llm_config: 
             history=[h.model_dump() for h in history],
             model=main_model,
             api_key=api_key,
+            mode=mode,
         ):
             yield _sse("token", {"text": token})
 
         yield _sse("done", {})
 
     except Exception as e:
+        print(f"[pipeline error] {type(e).__name__}: {e}")
         yield _sse("error", {"message": str(e)})
 
 
 @app.post("/api/search")
 async def search(req: SearchRequest):
     return StreamingResponse(
-        _search_generator(req.query, req.history, req.llm_config),
+        _search_generator(req.query, req.history, req.llm_config, req.mode),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

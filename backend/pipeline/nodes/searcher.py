@@ -4,14 +4,15 @@ from tavily import AsyncTavilyClient
 from pipeline.state import SearchState
 
 
-async def searcher(state: SearchState) -> dict:
+async def searcher(state: SearchState, mode: str = "search") -> dict:
     client = AsyncTavilyClient(api_key=os.environ["TAVILY_API_KEY"])
+    max_results = 7 if mode == "research" else 5
 
     async def search_one(query: str) -> list[dict]:
         try:
             response = await client.search(
                 query=query,
-                max_results=5,
+                max_results=max_results,
                 include_raw_content=True,  # fetch full page content when available
             )
             return response.get("results", [])
