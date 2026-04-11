@@ -211,3 +211,16 @@
   0%, 60%, 100% { opacity: 0; }
   30%            { opacity: 1; }
 }
+
+/* Inline streaming cursor — appears at the end of the last markdown block */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+.answer-streaming > *:last-child::after {
+  content: '▍';
+  margin-left: 1px;
+  color: rgba(243, 243, 238, 0.65);
+  animation: cursor-blink 0.9s step-end infinite;
+}

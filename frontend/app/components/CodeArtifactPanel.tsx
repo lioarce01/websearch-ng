@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { type CodeBlock, CheckIcon, CopyIcon } from "./answer-shared";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -39,30 +41,6 @@ function CopyButton({ code }: { code: string }) {
     >
       {copied ? <><CheckIcon />Copied</> : <><CopyIcon />Copy</>}
     </button>
-  );
-}
-
-// ─── Code with line numbers ───────────────────────────────────────────────────
-
-function CodeWithLineNumbers({ code }: { code: string }) {
-  const lines = code.split("\n");
-  return (
-    <div className="flex min-w-0 font-mono text-[13px] leading-[1.65]">
-      {/* Line numbers */}
-      <div
-        className="select-none shrink-0 text-right pr-4 text-foreground-muted/25
-                   border-r border-white/6 min-w-[3rem]"
-        aria-hidden
-      >
-        {lines.map((_, i) => (
-          <div key={i}>{i + 1}</div>
-        ))}
-      </div>
-      {/* Code */}
-      <pre className="flex-1 overflow-x-auto pl-5 text-foreground/88 m-0 bg-transparent whitespace-pre">
-        <code>{code}</code>
-      </pre>
-    </div>
   );
 }
 
@@ -162,9 +140,28 @@ export default function CodeArtifactPanel({ blocks, onClose }: CodeArtifactPanel
             </div>
 
             {/* Code */}
-            <div className="py-5">
-              <CodeWithLineNumbers code={active.code} />
-            </div>
+            <SyntaxHighlighter
+              language={active.lang || "text"}
+              style={oneDark}
+              showLineNumbers
+              customStyle={{
+                margin: 0,
+                borderRadius: 0,
+                background: "transparent",
+                padding: "1.25rem 0",
+                fontSize: "13px",
+                lineHeight: "1.65",
+              }}
+              lineNumberStyle={{
+                color: "rgba(255,255,255,0.15)",
+                minWidth: "3.5rem",
+                paddingRight: "1.25rem",
+                userSelect: "none",
+              }}
+              codeTagProps={{ style: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" } }}
+            >
+              {active.code}
+            </SyntaxHighlighter>
           </>
         )}
       </div>

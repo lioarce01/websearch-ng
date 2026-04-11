@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -192,20 +194,32 @@ function CodeBlock({ children, className }: { children?: React.ReactNode; classN
   };
 
   return (
-    <div className="relative group my-4 rounded-xl overflow-hidden border border-white/8 bg-surface">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-white/8 bg-surface-alt">
-        <span className="text-[11px] font-mono text-foreground-muted">{lang || "code"}</span>
+    <div className="relative group my-4 rounded-xl overflow-hidden border border-white/8 bg-[#1e1e2e]">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-white/8 bg-white/4">
+        <span className="text-[11px] font-mono text-foreground-muted/60">{lang || "code"}</span>
         <button
           onClick={copy}
-          className="text-[11px] font-medium text-foreground-muted hover:text-foreground
+          className="text-[11px] font-medium text-foreground-muted/50 hover:text-foreground-muted
                      transition-colors flex items-center gap-1.5"
         >
           {copied ? <><CheckIcon />Copied</> : <><CopyIcon />Copy</>}
         </button>
       </div>
-      <pre className="overflow-x-auto p-4 text-[13px] leading-relaxed font-mono text-foreground/90 m-0 bg-transparent">
-        <code>{children}</code>
-      </pre>
+      <SyntaxHighlighter
+        language={lang || "text"}
+        style={oneDark}
+        customStyle={{
+          margin: 0,
+          borderRadius: 0,
+          background: "transparent",
+          padding: "1rem 1.25rem",
+          fontSize: "13px",
+          lineHeight: "1.65",
+        }}
+        codeTagProps={{ style: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" } }}
+      >
+        {code}
+      </SyntaxHighlighter>
     </div>
   );
 }
@@ -318,13 +332,10 @@ interface AnswerBodyProps {
 
 export function AnswerBody({ answer, loading, sources }: AnswerBodyProps) {
   return (
-    <div className="text-[15px]">
+    <div className={`text-[15px] ${loading ? "answer-streaming" : ""}`}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={makeComponents(sources)}>
         {answer}
       </ReactMarkdown>
-      {loading && (
-        <span className="inline-block w-0.5 h-4 bg-foreground-muted animate-pulse ml-0.5 align-middle rounded-full" />
-      )}
     </div>
   );
 }

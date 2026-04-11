@@ -70,7 +70,7 @@ function QueryPills({ queries }: { queries: string[] }) {
   );
 }
 
-const CHARS_PER_FRAME = 2; // hyper-slow for testing — raise to 3-6 for production
+const CHARS_PER_FRAME = 3;
 
 const STATUS_TO_STAGE: Record<string, Stage> = {
   "Rewriting query...":    "rewriting",
@@ -107,6 +107,7 @@ export default function Home() {
   const teaserRef         = useRef<string>("");
   const themeRef          = useRef<string>("");
   const searchStartRef    = useRef<number>(0);
+  const loadingRef        = useRef(false);
   const scrollRef         = useRef<HTMLDivElement>(null);
 
   // Resizable artifact panel (research)
@@ -150,6 +151,7 @@ export default function Home() {
     ]);
     setDisplayedAnswer("");
     setStreamSources([]);
+    loadingRef.current = false;
     setLoading(false);
     setStage("done");
   }, []);
@@ -238,6 +240,21 @@ export default function Home() {
     sessionStorage.setItem("ws_format", format);
   }, [format]);
 
+  // Restart RAF when window is restored from minimize — RAF is fully suspended while hidden.
+  // We can't rely on the suspended RAF resuming (Chrome may discard it), so we restart explicitly
+  // whenever a search is in progress, regardless of how many tokens have arrived so far.
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      if (loadingRef.current) {
+        stopSoftStream();
+        startSoftStream();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [startSoftStream, stopSoftStream]);
+
   // Drag-to-resize artifact panel
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
@@ -272,6 +289,7 @@ export default function Home() {
     receivedRef.current     = "";
     displayedLenRef.current = 0;
     isDoneRef.current       = false;
+    loadingRef.current      = true;
     finalSourcesRef.current = [];
     suggestionsRef.current  = [];
     queriesRef.current      = [];
