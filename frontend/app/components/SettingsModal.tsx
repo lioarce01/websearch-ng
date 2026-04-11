@@ -23,28 +23,35 @@ function PricingBadge({ pricing }: { pricing?: Pricing }) {
   if (!pricing) return null;
   if (pricing.type === "free") {
     return (
-      <span className="shrink-0 text-[10px] font-medium text-emerald-400/70 bg-emerald-400/8
-                       border border-emerald-400/15 rounded-full px-1.5 py-px leading-none">
+      <span className="shrink-0 text-[10px] font-medium text-emerald-400 bg-emerald-400/10
+                       border border-emerald-400/25 rounded-full px-1.5 py-px leading-none">
         Free
       </span>
     );
   }
   if (pricing.type === "free_tier") {
     return (
-      <span className="shrink-0 text-[10px] font-medium text-emerald-400/60 bg-emerald-400/6
-                       border border-emerald-400/12 rounded-full px-1.5 py-px leading-none">
+      <span className="shrink-0 text-[10px] font-medium text-emerald-400/80 bg-emerald-400/8
+                       border border-emerald-400/20 rounded-full px-1.5 py-px leading-none">
         Free tier
       </span>
     );
   }
   if (pricing.type === "paid" && pricing.prompt) {
     return (
-      <span className="shrink-0 text-[10px] text-foreground-muted/40 leading-none">
+      <span className="shrink-0 text-[10px] font-medium text-red-400/80 bg-red-400/8
+                       border border-red-400/20 rounded-full px-1.5 py-px leading-none">
         {pricing.prompt}/1M
       </span>
     );
   }
   return null;
+}
+
+function shortModelLabel(id: string): string {
+  // Strip provider prefix, keep just the model slug, truncate if too long
+  const name = id.split("/").pop() ?? id;
+  return name.length > 30 ? name.slice(0, 29) + "…" : name;
 }
 
 interface SettingsModalProps {
@@ -180,19 +187,26 @@ export default function SettingsModal({ open, onClose, config, onSave }: Setting
               Loading models…
             </span>
           ) : (
-            <SelectValue />
+            <span className="truncate text-sm">
+              {modelOptions?.find((m) => m.value === value)?.label ?? shortModelLabel(value)}
+            </span>
           )}
         </SelectTrigger>
         {modelOptions && (
-          <SelectContent alignItemWithTrigger={false}className="bg-surface border-white/10 text-foreground rounded-xl max-h-60">
+          <SelectContent alignItemWithTrigger={false} className="bg-surface border-white/10 text-foreground rounded-xl max-h-60 min-w-0
+                                   [&::-webkit-scrollbar]:w-[3px]
+                                   [&::-webkit-scrollbar-track]:bg-transparent
+                                   [&::-webkit-scrollbar-thumb]:bg-white/25
+                                   [&::-webkit-scrollbar-thumb]:rounded-full
+                                   [&::-webkit-scrollbar-thumb:hover]:bg-white/45">
             {modelOptions.map((m) => (
               <SelectItem
                 key={m.value}
                 value={m.value}
                 className="focus:bg-surface-alt focus:text-foreground cursor-pointer"
               >
-                <span className="flex items-center justify-between gap-3 w-full">
-                  <span className="truncate">{m.label}</span>
+                <span className="flex items-center gap-2 w-full min-w-0">
+                  <span className="truncate flex-1 min-w-0 text-sm">{m.label}</span>
                   <PricingBadge pricing={m.pricing} />
                 </span>
               </SelectItem>
@@ -207,10 +221,10 @@ export default function SettingsModal({ open, onClose, config, onSave }: Setting
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent
         className="max-w-md bg-surface border border-white/10 text-foreground rounded-2xl
-                   shadow-2xl shadow-black/60 p-0 overflow-hidden"
+                   shadow-2xl shadow-black/60 p-0 overflow-hidden flex flex-col max-h-[90vh]"
       >
         {/* Header */}
-        <div className="px-6 pt-6 pb-4 border-b border-white/8">
+        <div className="shrink-0 px-6 pt-6 pb-4 border-b border-white/8">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold text-foreground">
               LLM Settings
@@ -222,7 +236,12 @@ export default function SettingsModal({ open, onClose, config, onSave }: Setting
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5 space-y-5">
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5
+                        [&::-webkit-scrollbar]:w-[3px]
+                        [&::-webkit-scrollbar-track]:bg-transparent
+                        [&::-webkit-scrollbar-thumb]:bg-white/25
+                        [&::-webkit-scrollbar-thumb]:rounded-full
+                        [&::-webkit-scrollbar-thumb:hover]:bg-white/45">
 
           {/* Provider */}
           <div className="space-y-2">
@@ -236,7 +255,7 @@ export default function SettingsModal({ open, onClose, config, onSave }: Setting
               >
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent alignItemWithTrigger={false}className="bg-surface border-white/10 text-foreground rounded-xl">
+              <SelectContent className="bg-surface border-white/10 text-foreground rounded-xl min-w-0">
                 {Object.entries(PROVIDERS).map(([key, def]) => (
                   <SelectItem
                     key={key}
@@ -390,7 +409,7 @@ export default function SettingsModal({ open, onClose, config, onSave }: Setting
         </div>
 
         {/* Footer */}
-        <div className="px-6 pb-6 flex justify-end gap-2">
+        <div className="shrink-0 px-6 pb-6 pt-3 border-t border-white/8 flex justify-end gap-2">
           <Button
             variant="ghost"
             onClick={onClose}

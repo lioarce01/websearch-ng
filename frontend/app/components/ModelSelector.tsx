@@ -16,23 +16,24 @@ function PricingBadge({ pricing }: { pricing?: Pricing }) {
 
   if (pricing.type === "free") {
     return (
-      <span className="shrink-0 text-[10px] font-medium text-emerald-400/70 bg-emerald-400/8
-                       border border-emerald-400/15 rounded-full px-1.5 py-px leading-none">
+      <span className="shrink-0 text-[10px] font-medium text-emerald-400 bg-emerald-400/10
+                       border border-emerald-400/25 rounded-full px-1.5 py-px leading-none">
         Free
       </span>
     );
   }
   if (pricing.type === "free_tier") {
     return (
-      <span className="shrink-0 text-[10px] font-medium text-emerald-400/60 bg-emerald-400/6
-                       border border-emerald-400/12 rounded-full px-1.5 py-px leading-none">
+      <span className="shrink-0 text-[10px] font-medium text-emerald-400/80 bg-emerald-400/8
+                       border border-emerald-400/20 rounded-full px-1.5 py-px leading-none">
         Free tier
       </span>
     );
   }
   if (pricing.type === "paid" && pricing.prompt) {
     return (
-      <span className="shrink-0 text-[10px] text-foreground-muted/40 leading-none">
+      <span className="shrink-0 text-[10px] font-medium text-red-400/80 bg-red-400/8
+                       border border-red-400/20 rounded-full px-1.5 py-px leading-none">
         {pricing.prompt}/1M
       </span>
     );
@@ -161,7 +162,7 @@ export default function ModelSelector({ config, onMainModelChange, dropdownPosit
         disabled={disabled}
         onClick={() => { setOpen((v) => !v); if (open) setSubOpen(false); }}
         className="flex items-center gap-1 h-8 px-2 rounded-lg
-                   text-[11px] font-mono text-foreground-muted/45 hover:text-foreground-muted
+                   text-[12px] text-foreground/50 hover:text-foreground/80
                    hover:bg-white/8 transition-colors duration-150 focus:outline-none max-w-[160px]"
       >
         <span className="truncate">{shortLabel(config.mainModel)}</span>
@@ -171,7 +172,7 @@ export default function ModelSelector({ config, onMainModelChange, dropdownPosit
       {/* Main dropdown */}
       {open && (
         <div className={`absolute ${positionClass} right-0 w-52
-                         rounded-xl border border-white/10 bg-[#1c1c1c]
+                         rounded-xl border border-white/10 bg-surface
                          shadow-2xl shadow-black/70 z-50 animate-fade-in py-1.5`}>
 
           {/* Current model */}
@@ -205,7 +206,7 @@ export default function ModelSelector({ config, onMainModelChange, dropdownPosit
                 onMouseEnter={handleSubContentEnter}
                 onMouseLeave={handleSubLeave}
                 className="absolute top-0 left-full ml-1 w-64 max-h-64 overflow-y-auto
-                           rounded-xl border border-white/10 bg-[#1c1c1c]
+                           rounded-xl border border-white/10 bg-surface
                            shadow-2xl shadow-black/70 z-50 animate-fade-in py-1.5
                            [&::-webkit-scrollbar]:w-[3px]
                            [&::-webkit-scrollbar-track]:bg-transparent
