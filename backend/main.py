@@ -55,6 +55,7 @@ class SearchRequest(BaseModel):
     mode:           str = "search"
     time_range:     str = ""
     include_domains: list[str] = []
+    format_hint:    str = "auto"
 
 
 def _sse(event: str, data: dict) -> str:
@@ -69,7 +70,7 @@ def _resolve_models(llm_config: LLMConfig) -> tuple[str, str, str | None]:
     return fast_model, main_model, api_key
 
 
-async def _search_generator(query: str, history: list[HistoryTurn], llm_config: LLMConfig, mode: str = "search", time_range: str = "", include_domains: list[str] = []):
+async def _search_generator(query: str, history: list[HistoryTurn], llm_config: LLMConfig, mode: str = "search", time_range: str = "", include_domains: list[str] = [], format_hint: str = "auto"):
     print(f"[search] mode={mode!r} time_range={time_range!r} max_sources={llm_config.maxSources} content_cap={llm_config.contentCap} query={query[:60]!r}")
     try:
         fast_model, main_model, api_key = _resolve_models(llm_config)
@@ -141,6 +142,7 @@ async def _search_generator(query: str, history: list[HistoryTurn], llm_config: 
             model=main_model,
             api_key=api_key,
             mode=mode,
+            format_hint=format_hint,
         ):
             accumulated_answer += token
             yield _sse("token", {"text": token})
@@ -173,7 +175,7 @@ async def _search_generator(query: str, history: list[HistoryTurn], llm_config: 
 @app.post("/api/search")
 async def search(req: SearchRequest):
     return StreamingResponse(
-        _search_generator(req.query, req.history, req.llm_config, req.mode, req.time_range, req.include_domains),
+        _search_generator(req.query, req.history, req.llm_config, req.mode, req.time_range, req.include_domains, req.format_hint),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

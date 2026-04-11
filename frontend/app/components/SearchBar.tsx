@@ -6,6 +6,17 @@ import ModelSelector from "./ModelSelector";
 import type { LLMConfig } from "../hooks/useSettings";
 
 export type SearchMode = "search" | "research";
+export type FormatMode = "auto" | "key_points" | "table" | "step_by_step" | "faq" | "code_first" | "debug";
+
+const FORMAT_OPTIONS: { value: FormatMode; label: string }[] = [
+  { value: "auto",        label: "Auto"           },
+  { value: "key_points",  label: "Key points"     },
+  { value: "table",       label: "Table"          },
+  { value: "step_by_step",label: "Step-by-step"   },
+  { value: "faq",         label: "FAQ"            },
+  { value: "code_first",  label: "Code-first"     },
+  { value: "debug",       label: "Debug"          },
+];
 
 const TIME_RANGES = [
   { value: "",      label: "Anytime"    },
@@ -25,6 +36,8 @@ interface SearchBarProps {
   onTimeRangeChange: (r: string) => void;
   includeDomains: string[];
   onIncludeDomainsChange: (domains: string[]) => void;
+  format: FormatMode;
+  onFormatChange: (f: FormatMode) => void;
   dropdownPosition?: "up" | "down";
   config: LLMConfig;
   onMainModelChange: (id: string) => void;
@@ -56,6 +69,14 @@ function CheckIcon() {
   );
 }
 
+function ChevronRightIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="shrink-0 text-foreground-muted/40">
+      <path d="m9 18 6-6-6-6" />
+    </svg>
+  );
+}
+
 function GlobeIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -75,25 +96,46 @@ export default function SearchBar({
   onTimeRangeChange,
   includeDomains,
   onIncludeDomainsChange,
+  format,
+  onFormatChange,
   dropdownPosition = "down",
   config,
   onMainModelChange,
 }: SearchBarProps) {
-  const inputRef  = useRef<HTMLTextAreaElement>(null);
-  const menuRef   = useRef<HTMLDivElement>(null);
-  const [open, setOpen]               = useState(false);
-  const [sourcesOpen, setSourcesOpen] = useState(false);
-  const [hasText, setHasText]         = useState(false);
+  const inputRef       = useRef<HTMLTextAreaElement>(null);
+  const menuRef        = useRef<HTMLDivElement>(null);
+  const timeSubTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const formatSubTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [open, setOpen]                   = useState(false);
+  const [timeSubOpen, setTimeSubOpen]     = useState(false);
+  const [formatSubOpen, setFormatSubOpen] = useState(false);
+  const [sourcesOpen, setSourcesOpen]     = useState(false);
+  const [hasText, setHasText]             = useState(false);
+
+  // Submenu vertical anchor: align to bottom of row when dropdown opens up, top when opens down
+  const subAnchor = dropdownPosition === "up" ? "bottom-0" : "top-0";
+
+  const closeAll = () => { setOpen(false); setTimeSubOpen(false); setFormatSubOpen(false); };
+
+  const handleTimeSubEnter = () => { if (timeSubTimer.current) clearTimeout(timeSubTimer.current); setTimeSubOpen(true); };
+  const handleTimeSubLeave = () => { timeSubTimer.current = setTimeout(() => setTimeSubOpen(false), 120); };
+  const handleTimeSubContentEnter = () => { if (timeSubTimer.current) clearTimeout(timeSubTimer.current); };
+
+  const handleFormatSubEnter = () => { if (formatSubTimer.current) clearTimeout(formatSubTimer.current); setFormatSubOpen(true); };
+  const handleFormatSubLeave = () => { formatSubTimer.current = setTimeout(() => setFormatSubOpen(false), 120); };
+  const handleFormatSubContentEnter = () => { if (formatSubTimer.current) clearTimeout(formatSubTimer.current); };
 
   const isResearch   = mode === "research";
   const hasTimeRange = timeRange !== "";
   const hasDomains   = includeDomains.length > 0;
+  const hasFormat    = format !== "auto" && !isResearch;
 
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) closeAll();
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeAll(); };
     document.addEventListener("mousedown", onMouseDown);
     document.addEventListener("keydown", onKey);
     return () => {
@@ -186,28 +228,23 @@ export default function SearchBar({
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                     <path d="M12 5v14M5 12h14" />
                   </svg>
-                  {(isResearch || hasTimeRange) && (
+                  {(isResearch || hasTimeRange || hasFormat) && (
                     <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-white/60" />
                   )}
                 </button>
 
-                {/* Dropdown — mode + time only */}
+                {/* Dropdown */}
                 {open && (
                   <div
                     className={`absolute ${dropdownPosition === "up" ? "bottom-full mb-2" : "top-full mt-2"} left-0 w-52
                                rounded-xl border border-white/10 bg-[#1c1c1c]
-                               shadow-2xl shadow-black/70 z-50 animate-fade-in`}
+                               shadow-2xl shadow-black/70 z-50 animate-fade-in py-1.5`}
                   >
                     {/* Mode */}
-                    <div className="px-3 pt-2.5 pb-1">
-                      <span className="text-[10px] font-medium text-foreground-muted/40 uppercase tracking-widest">
-                        Mode
-                      </span>
-                    </div>
                     <div className="px-1 pb-1">
                       <button
                         type="button"
-                        onClick={() => { onModeChange(isResearch ? "search" : "research"); setOpen(false); }}
+                        onClick={() => { onModeChange(isResearch ? "search" : "research"); closeAll(); }}
                         className="w-full flex items-center gap-3 px-3 py-2 rounded-lg
                                    hover:bg-white/8 transition-colors duration-100"
                       >
@@ -217,27 +254,107 @@ export default function SearchBar({
                       </button>
                     </div>
 
-                    {/* Time */}
                     <div className="mx-3 border-t border-white/8 my-1" />
-                    <div className="px-3 pt-1.5 pb-1">
-                      <span className="text-[10px] font-medium text-foreground-muted/40 uppercase tracking-widest">
-                        Time
-                      </span>
-                    </div>
-                    <div className="px-1 pb-2">
-                      {TIME_RANGES.map((tr) => (
+
+                    {/* Time — flyout */}
+                    <div className="px-1">
+                      <div
+                        className="relative"
+                        onMouseEnter={handleTimeSubEnter}
+                        onMouseLeave={handleTimeSubLeave}
+                      >
                         <button
-                          key={tr.value}
                           type="button"
-                          onClick={() => { onTimeRangeChange(tr.value); setOpen(false); }}
                           className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg
                                      hover:bg-white/8 transition-colors duration-100"
                         >
-                          <span className="text-[13px] text-foreground">{tr.label}</span>
-                          {timeRange === tr.value && <span className="text-white/60"><CheckIcon /></span>}
+                          <span className="text-[13px] text-foreground">Time</span>
+                          <div className="flex items-center gap-1.5">
+                            {hasTimeRange && (
+                              <span className="text-[11px] text-foreground-muted/50">
+                                {TIME_RANGES.find((t) => t.value === timeRange)?.label}
+                              </span>
+                            )}
+                            <ChevronRightIcon />
+                          </div>
                         </button>
-                      ))}
+
+                        {timeSubOpen && (
+                          <div
+                            onMouseEnter={handleTimeSubContentEnter}
+                            onMouseLeave={handleTimeSubLeave}
+                            className={`absolute ${subAnchor} left-full ml-1 w-40
+                                        rounded-xl border border-white/10 bg-[#1c1c1c]
+                                        shadow-2xl shadow-black/70 z-[9999] animate-fade-in py-1.5`}
+                          >
+                            {TIME_RANGES.map((tr) => (
+                              <button
+                                key={tr.value}
+                                type="button"
+                                onClick={() => { onTimeRangeChange(tr.value); closeAll(); }}
+                                className="w-full flex items-center justify-between px-3 py-1.5
+                                           hover:bg-white/8 transition-colors duration-100"
+                              >
+                                <span className="text-[13px] text-foreground">{tr.label}</span>
+                                {timeRange === tr.value && <span className="text-white/60"><CheckIcon /></span>}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Format — search mode only, flyout */}
+                    {!isResearch && (
+                      <>
+                        <div className="px-1 pb-1">
+                          <div
+                            className="relative"
+                            onMouseEnter={handleFormatSubEnter}
+                            onMouseLeave={handleFormatSubLeave}
+                          >
+                            <button
+                              type="button"
+                              className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg
+                                         hover:bg-white/8 transition-colors duration-100"
+                            >
+                              <span className="text-[13px] text-foreground">Format</span>
+                              <div className="flex items-center gap-1.5">
+                                {format !== "auto" && (
+                                  <span className="text-[11px] text-foreground-muted/50">
+                                    {FORMAT_OPTIONS.find((f) => f.value === format)?.label}
+                                  </span>
+                                )}
+                                <ChevronRightIcon />
+                              </div>
+                            </button>
+
+                            {formatSubOpen && (
+                              <div
+                                onMouseEnter={handleFormatSubContentEnter}
+                                onMouseLeave={handleFormatSubLeave}
+                                className={`absolute ${subAnchor} left-full ml-1 w-44
+                                            rounded-xl border border-white/10 bg-[#1c1c1c]
+                                            shadow-2xl shadow-black/70 z-[9999] animate-fade-in py-1.5`}
+                              >
+                                {FORMAT_OPTIONS.map((fo) => (
+                                  <button
+                                    key={fo.value}
+                                    type="button"
+                                    onClick={() => { onFormatChange(fo.value); closeAll(); }}
+                                    className="w-full flex items-center justify-between px-3 py-1.5
+                                               hover:bg-white/8 transition-colors duration-100"
+                                  >
+                                    <span className="text-[13px] text-foreground">{fo.label}</span>
+                                    {format === fo.value && <span className="text-white/60"><CheckIcon /></span>}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

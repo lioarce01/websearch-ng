@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import SearchBar, { type SearchMode } from "./components/SearchBar";
+import SearchBar, { type SearchMode, type FormatMode } from "./components/SearchBar";
 import AnswerStream from "./components/AnswerStream";
 import SourcesList from "./components/SourcesList";
 import PipelineStatus, { type Stage } from "./components/PipelineStatus";
@@ -84,8 +84,9 @@ export default function Home() {
   const { config, save: saveConfig } = useSettings();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchMode, setSearchMode]     = useState<SearchMode>("search");
-  const [timeRange, setTimeRange]             = useState<string>("");
-  const [includeDomains, setIncludeDomains]   = useState<string[]>([]);
+  const [timeRange, setTimeRange]       = useState<string>("");
+  const [includeDomains, setIncludeDomains] = useState<string[]>([]);
+  const [format, setFormat]             = useState<FormatMode>("auto");
   const [turns, setTurns]               = useState<Turn[]>([]);
   const [loading, setLoading]           = useState(false);
   const [stage, setStage]               = useState<Stage>("rewriting");
@@ -178,6 +179,7 @@ export default function Home() {
     setStreamSources([]);
     setStage("rewriting");
     setCurrentQuery("");
+    setFormat("auto");
     setArtifactOpen(false);
     setArtifactTurnIndex(null);
     try { sessionStorage.removeItem("ws_turns"); } catch { /* ignore */ }
@@ -198,10 +200,13 @@ export default function Home() {
   // Session persistence — restore on mount
   useEffect(() => {
     try {
-      const savedTurns = sessionStorage.getItem("ws_turns");
-      const savedMode  = sessionStorage.getItem("ws_mode");
+      const savedTurns  = sessionStorage.getItem("ws_turns");
+      const savedMode   = sessionStorage.getItem("ws_mode");
+      const savedFormat = sessionStorage.getItem("ws_format");
       if (savedTurns) setTurns(JSON.parse(savedTurns));
       if (savedMode === "research" || savedMode === "search") setSearchMode(savedMode);
+      if (savedFormat && ["auto", "key_points", "table", "step_by_step", "faq", "code_first", "debug"].includes(savedFormat))
+        setFormat(savedFormat as FormatMode);
     } catch { /* corrupt data — start fresh */ }
   }, []);
 
@@ -214,6 +219,11 @@ export default function Home() {
   useEffect(() => {
     sessionStorage.setItem("ws_mode", searchMode);
   }, [searchMode]);
+
+  // Session persistence — persist format
+  useEffect(() => {
+    sessionStorage.setItem("ws_format", format);
+  }, [format]);
 
   // Drag-to-resize artifact panel
   useEffect(() => {
@@ -280,6 +290,7 @@ export default function Home() {
           mode: searchMode,
           time_range: timeRange,
           include_domains: includeDomains,
+          format_hint: searchMode === "research" ? "auto" : format,
         }),
       });
       if (!res.ok || !res.body) throw new Error("Search request failed");
@@ -394,6 +405,8 @@ export default function Home() {
                 onTimeRangeChange={setTimeRange}
                 includeDomains={includeDomains}
                 onIncludeDomainsChange={setIncludeDomains}
+                format={format}
+                onFormatChange={setFormat}
                 config={config}
                 onMainModelChange={(id) => saveConfig({ ...config, mainModel: id })}
               />
@@ -621,6 +634,8 @@ export default function Home() {
                   onTimeRangeChange={setTimeRange}
                   includeDomains={includeDomains}
                   onIncludeDomainsChange={setIncludeDomains}
+                  format={format}
+                  onFormatChange={setFormat}
                   dropdownPosition="up"
                   config={config}
                   onMainModelChange={(id) => saveConfig({ ...config, mainModel: id })}

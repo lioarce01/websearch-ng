@@ -45,6 +45,91 @@ export function getContent(fmt: ExportFormat, query: string, answer: string, sou
 
 // ─── Citation rendering ───────────────────────────────────────────────────────
 
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/[#*_`~>]/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getDomain(url: string): string {
+  try { return new URL(url).hostname.replace(/^www\./, ""); }
+  catch { return url; }
+}
+
+interface CitationBadgeProps {
+  idx: number;
+  source: Source | undefined;
+}
+
+function CitationBadge({ idx, source }: CitationBadgeProps) {
+  const [hovered, setHovered] = useState(false);
+
+  const badge = (
+    <a
+      href={source?.url ?? "#"}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => { if (!source?.url) e.preventDefault(); }}
+      className="inline-flex items-center justify-center w-4 h-4 text-[10px]
+                 font-mono font-semibold rounded-full bg-white/10 text-foreground-muted
+                 hover:bg-white/20 hover:text-foreground transition-colors cursor-pointer
+                 border border-white/15 hover:border-white/30 no-underline
+                 leading-none align-middle relative -top-px"
+    >
+      {idx}
+    </a>
+  );
+
+  if (!source) return <span className="mx-0.5">{badge}</span>;
+
+  const title         = source.title.length > 55 ? source.title.slice(0, 55) + "…" : source.title;
+  const domain        = getDomain(source.url);
+  const strippedContent = source.content ? stripMarkdown(source.content) : "";
+  const excerpt       = strippedContent ? strippedContent.slice(0, 150) + (strippedContent.length > 150 ? "…" : "") : "";
+
+  return (
+    <span
+      className="relative inline-flex mx-0.5"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {badge}
+
+      {hovered && (
+        <span
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[9999]
+                     w-[260px] flex flex-col gap-1.5
+                     rounded-xl border border-white/10 bg-[#1c1c1c]
+                     shadow-2xl shadow-black/70 px-3.5 py-3
+                     pointer-events-none animate-fade-in"
+        >
+          {/* Title */}
+          <span className="text-[12px] font-medium text-foreground/90 leading-snug">
+            {title}
+          </span>
+
+          {/* Domain */}
+          <span className="flex items-center gap-1 text-[11px] text-foreground-muted/50">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+              <circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg>
+            {domain}
+          </span>
+
+          {/* Excerpt */}
+          {excerpt && (
+            <span className="text-[11px] text-foreground-muted/70 leading-relaxed border-t border-white/8 pt-1.5 mt-0.5">
+              {excerpt}
+            </span>
+          )}
+        </span>
+      )}
+    </span>
+  );
+}
+
 export function renderCitations(text: string, sources: Source[]) {
   const parts = text.split(/(\[\d+\])/g);
   return parts.map((part, i) => {
@@ -52,22 +137,7 @@ export function renderCitations(text: string, sources: Source[]) {
     if (!match) return part;
     const idx = parseInt(match[1]);
     const source = sources.find((s) => s.index === idx);
-    return (
-      <a
-        key={i}
-        href={source?.url ?? "#"}
-        target="_blank"
-        rel="noopener noreferrer"
-        title={source?.title}
-        className="inline-flex items-center justify-center mx-0.5 w-4 h-4 text-[10px]
-                   font-mono font-semibold rounded-full bg-white/10 text-foreground-muted
-                   hover:bg-white/20 hover:text-foreground transition-colors cursor-pointer
-                   border border-white/15 hover:border-white/30 no-underline
-                   leading-none align-middle relative -top-px"
-      >
-        {idx}
-      </a>
-    );
+    return <CitationBadge key={i} idx={idx} source={source} />;
   });
 }
 

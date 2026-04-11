@@ -1,6 +1,49 @@
 import litellm
 from pipeline.state import SearchState
 
+FORMAT_INSTRUCTIONS: dict[str, str] = {
+    "key_points": (
+        "FORMATTING REQUIREMENT: Respond as a tight bullet list of key points. "
+        "Lead with the single most important insight. Each bullet must state one distinct, self-contained assertion — no prose paragraphs. "
+        "Use `- ` for main bullets and `  - ` (indented) for sub-points where needed. "
+        "Every factual bullet must end with its inline citation [N]."
+    ),
+    "table": (
+        "FORMATTING REQUIREMENT: Present the core information as one or more Markdown tables. "
+        "Use a table for any comparison, attribute grid, or structured list. "
+        "Column headers must be bold. Add a brief prose sentence before the table to frame it, and a short synthesis after if needed. "
+        "Still cite inline with [N] inside table cells."
+    ),
+    "step_by_step": (
+        "FORMATTING REQUIREMENT: Structure the entire response as a numbered sequence of steps. "
+        "If there are prerequisites, list them as a short bullet block before step 1 under a bold **Prerequisites** label. "
+        "Each step starts with a bold action verb (e.g. **Install**, **Configure**, **Run**) followed by the instruction. "
+        "End with a bold **Expected outcome** line. Still cite inline with [N]."
+    ),
+    "faq": (
+        "FORMATTING REQUIREMENT: Break your response into 4–6 FAQ-style question-and-answer pairs. "
+        "Each question must be bolded (e.g. **What is X?**). "
+        "Each answer is 1–3 sentences, directly addressing the question with inline citations [N]. "
+        "Cover the key angles: definition, mechanism, why it matters, common misconceptions, and practical implications. "
+        "Do not use section headers or prose outside the Q&A pairs."
+    ),
+    "code_first": (
+        "FORMATTING REQUIREMENT: Lead immediately with a complete, working code block or command (fenced with the correct language tag, e.g. ```python or ```bash). "
+        "The code must be runnable as-is — no pseudocode, no placeholders unless unavoidable. "
+        "After the code block, add a brief explanation: what it does, key parameters, and any important caveats. "
+        "If multiple valid approaches exist, show the best one first, then mention alternatives in one sentence. "
+        "Still cite inline with [N] in the prose."
+    ),
+    "debug": (
+        "FORMATTING REQUIREMENT: Structure the response with exactly four H3 sections in this order:\n"
+        "### Symptom\nWhat the user is experiencing and how to confirm it.\n"
+        "### Root Cause\nWhy this happens — the underlying mechanism, cited [N].\n"
+        "### Fix\nStep-by-step resolution. Use a numbered list. Include code blocks where relevant.\n"
+        "### Prevention\nHow to avoid this issue in future. Keep to 2–3 bullets.\n"
+        "Do not add any sections beyond these four. Still cite inline with [N]."
+    ),
+}
+
 SYSTEM_PROMPT = """You are a world-class research analyst — think of yourself as a combination of a senior journalist at The Economist, a tenured research scientist, and a McKinsey partner. Your job is to synthesize retrieved web sources into authoritative, insightful answers that genuinely advance the user's understanding.
 
 ## Core Principles
@@ -103,9 +146,13 @@ async def synthesizer(
     model: str = "groq/llama-3.3-70b-versatile",
     api_key: str | None = None,
     mode: str = "search",
+    format_hint: str = "auto",
 ):
     context = _build_context(state)
-    system_prompt = RESEARCH_SYSTEM_PROMPT if mode == "research" else SYSTEM_PROMPT
+    base_prompt = RESEARCH_SYSTEM_PROMPT if mode == "research" else SYSTEM_PROMPT
+    # Format hint only applies to search mode — research reports have a fixed required structure
+    format_instruction = FORMAT_INSTRUCTIONS.get(format_hint, "") if mode != "research" else ""
+    system_prompt = f"{format_instruction}\n\n{base_prompt}" if format_instruction else base_prompt
 
     messages = [{"role": "system", "content": system_prompt}]
 
