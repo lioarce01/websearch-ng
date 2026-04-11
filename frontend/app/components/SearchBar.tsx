@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import SourcesModal from "./SourcesModal";
 import ModelSelector from "./ModelSelector";
@@ -81,7 +80,7 @@ export default function SearchBar({
   config,
   onMainModelChange,
 }: SearchBarProps) {
-  const inputRef  = useRef<HTMLInputElement>(null);
+  const inputRef  = useRef<HTMLTextAreaElement>(null);
   const menuRef   = useRef<HTMLDivElement>(null);
   const [open, setOpen]               = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(false);
@@ -103,12 +102,33 @@ export default function SearchBar({
     };
   }, []);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const resizeTextarea = () => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  };
+
+  const submitQuery = () => {
     const query = inputRef.current?.value.trim();
     if (query) {
       onSearch(query);
-      if (inputRef.current) inputRef.current.value = "";
+      if (inputRef.current) {
+        inputRef.current.value = "";
+        inputRef.current.style.height = "auto";
+      }
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    submitQuery();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      submitQuery();
     }
   };
 
@@ -129,15 +149,19 @@ export default function SearchBar({
         <form onSubmit={handleSubmit} className="flex flex-col w-full">
 
           {/* Input row */}
-          <Input
+          <textarea
             ref={inputRef}
             name="q"
-            type="text"
+            rows={1}
             placeholder="Ask anything..."
             disabled={loading}
             autoFocus={autoFocusOnMount}
-            className="border-0 bg-transparent text-foreground placeholder:text-foreground-muted
-                       focus-visible:ring-0 h-12 text-[15px] px-5 rounded-none font-normal"
+            onInput={resizeTextarea}
+            onKeyDown={handleKeyDown}
+            className="w-full resize-none overflow-y-auto bg-transparent text-foreground
+                       placeholder:text-foreground-muted text-[15px] px-5 py-3.5 font-normal
+                       leading-relaxed rounded-none border-0 outline-none focus:outline-none
+                       disabled:opacity-50 disabled:cursor-not-allowed max-h-40"
           />
 
           {/* Bottom toolbar */}
@@ -170,12 +194,7 @@ export default function SearchBar({
                   <div
                     className={`absolute ${dropdownPosition === "up" ? "bottom-full mb-2" : "top-full mt-2"} left-0 w-52
                                rounded-xl border border-white/10 bg-[#1c1c1c]
-                               shadow-2xl shadow-black/70 z-50 animate-fade-in
-                               [&::-webkit-scrollbar]:w-[3px]
-                               [&::-webkit-scrollbar-track]:bg-transparent
-                               [&::-webkit-scrollbar-thumb]:bg-white/15
-                               [&::-webkit-scrollbar-thumb]:rounded-full
-                               [&::-webkit-scrollbar-thumb:hover]:bg-white/30`}
+                               shadow-2xl shadow-black/70 z-50 animate-fade-in`}
                   >
                     {/* Mode */}
                     <div className="px-3 pt-2.5 pb-1">

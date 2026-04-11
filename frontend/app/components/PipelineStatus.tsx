@@ -27,7 +27,11 @@ export default function PipelineStatus({ current }: { current: Stage }) {
       {/* Label */}
       <span className="text-[13px] text-foreground-muted font-medium tracking-tight">
         {STAGE_LABEL[current]}
-        <span className="animate-ellipsis" />
+        <span className="animate-ellipsis inline-flex">
+          <span className="dot">.</span>
+          <span className="dot">.</span>
+          <span className="dot">.</span>
+        </span>
       </span>
     </div>
   );

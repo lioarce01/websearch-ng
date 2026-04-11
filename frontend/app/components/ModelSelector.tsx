@@ -207,12 +207,7 @@ export default function ModelSelector({ config, onMainModelChange, dropdownPosit
                 onMouseLeave={handleSubLeave}
                 className="absolute top-0 left-full ml-1 w-64 max-h-64 overflow-y-auto
                            rounded-xl border border-white/10 bg-surface
-                           shadow-2xl shadow-black/70 z-50 animate-fade-in py-1.5
-                           [&::-webkit-scrollbar]:w-[3px]
-                           [&::-webkit-scrollbar-track]:bg-transparent
-                           [&::-webkit-scrollbar-thumb]:bg-white/15
-                           [&::-webkit-scrollbar-thumb]:rounded-full
-                           [&::-webkit-scrollbar-thumb:hover]:bg-white/30"
+                           shadow-2xl shadow-black/70 z-50 animate-fade-in py-1.5"
               >
                 {fetching ? (
                   <div className="flex items-center gap-2 px-3 py-3">

@@ -193,12 +193,7 @@ export default function SettingsModal({ open, onClose, config, onSave }: Setting
           )}
         </SelectTrigger>
         {modelOptions && (
-          <SelectContent alignItemWithTrigger={false} className="bg-surface border-white/10 text-foreground rounded-xl max-h-60 min-w-0
-                                   [&::-webkit-scrollbar]:w-[3px]
-                                   [&::-webkit-scrollbar-track]:bg-transparent
-                                   [&::-webkit-scrollbar-thumb]:bg-white/25
-                                   [&::-webkit-scrollbar-thumb]:rounded-full
-                                   [&::-webkit-scrollbar-thumb:hover]:bg-white/45">
+          <SelectContent alignItemWithTrigger={false} className="bg-surface border-white/10 text-foreground rounded-xl max-h-60 min-w-0">
             {modelOptions.map((m) => (
               <SelectItem
                 key={m.value}
@@ -236,12 +231,7 @@ export default function SettingsModal({ open, onClose, config, onSave }: Setting
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5
-                        [&::-webkit-scrollbar]:w-[3px]
-                        [&::-webkit-scrollbar-track]:bg-transparent
-                        [&::-webkit-scrollbar-thumb]:bg-white/25
-                        [&::-webkit-scrollbar-thumb]:rounded-full
-                        [&::-webkit-scrollbar-thumb:hover]:bg-white/45">
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
 
           {/* Provider */}
           <div className="space-y-2">
