@@ -506,7 +506,7 @@ export default function Home() {
                         )}
                       </div>
                     ) : (
-                      <AnswerStream answer={turn.answer} loading={false} status="" sources={turn.sources} query={turn.query} mode={searchMode} />
+                      <AnswerStream answer={turn.answer} loading={false} status="" sources={turn.sources} query={turn.query} mode={searchMode} onRetry={() => handleSearch(turn.query)} />
                     )}
 
                     {searchMode !== "research" && turn.suggestions?.length > 0 && (
@@ -656,6 +656,7 @@ export default function Home() {
                   sources={artifactSources}
                   query={artifactQuery}
                   onClose={() => setArtifactOpen(false)}
+                  onRetry={() => handleSearch(artifactQuery)}
                 />
               </div>
             </>

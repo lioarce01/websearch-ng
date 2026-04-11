@@ -7,6 +7,7 @@ import {
   ExportDropdown,
   CopyIcon,
   CheckIcon,
+  RetryIcon,
   buildMarkdown,
 } from "./answer-shared";
 
@@ -16,6 +17,7 @@ interface ArtifactPanelProps {
   sources: Source[];
   query: string;
   onClose?: () => void;
+  onRetry?: () => void;
 }
 
 function DocumentIcon() {
@@ -30,7 +32,7 @@ function DocumentIcon() {
   );
 }
 
-export default function ArtifactPanel({ answer, loading, sources, query, onClose }: ArtifactPanelProps) {
+export default function ArtifactPanel({ answer, loading, sources, query, onClose, onRetry }: ArtifactPanelProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -61,6 +63,17 @@ export default function ArtifactPanel({ answer, loading, sources, query, onClose
         {/* Actions — only when there's content */}
         {(answer || loading) && (
           <div className="flex items-center gap-3 shrink-0">
+            {/* Retry — only when answer is complete */}
+            {onRetry && !loading && answer && (
+              <button
+                onClick={onRetry}
+                className="flex items-center gap-1.5 text-[11px] text-foreground-muted/50
+                           hover:text-foreground-muted transition-colors duration-150 cursor-pointer"
+              >
+                <RetryIcon />Retry
+              </button>
+            )}
+
             {/* Copy as markdown */}
             <button
               onClick={handleCopy}

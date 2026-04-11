@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import SourcesModal from "./SourcesModal";
 import ModelSelector from "./ModelSelector";
 import type { LLMConfig } from "../hooks/useSettings";
@@ -84,6 +83,7 @@ export default function SearchBar({
   const menuRef   = useRef<HTMLDivElement>(null);
   const [open, setOpen]               = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [hasText, setHasText]         = useState(false);
 
   const isResearch   = mode === "research";
   const hasTimeRange = timeRange !== "";
@@ -107,6 +107,7 @@ export default function SearchBar({
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
+    setHasText(el.value.trim().length > 0);
   };
 
   const submitQuery = () => {
@@ -116,6 +117,7 @@ export default function SearchBar({
       if (inputRef.current) {
         inputRef.current.value = "";
         inputRef.current.style.height = "auto";
+        setHasText(false);
       }
     }
   };
@@ -143,7 +145,7 @@ export default function SearchBar({
 
       <div
         className="flex flex-col rounded-2xl border border-white/10 bg-surface/80 backdrop-blur-xl
-                   shadow-2xl shadow-black/50 overflow-visible
+                   shadow-lg shadow-black/20 overflow-visible
                    focus-within:border-white/25 transition-all duration-300"
       >
         <form onSubmit={handleSubmit} className="flex flex-col w-full">
@@ -271,16 +273,26 @@ export default function SearchBar({
                 disabled={loading}
               />
 
-            {/* Search button */}
-            <Button
+            {/* Submit button — always visible, disabled when empty */}
+            <button
               type="submit"
-              disabled={loading}
-              className="rounded-xl h-8 px-4 bg-white text-background text-sm font-semibold
-                         hover:bg-white/85 disabled:opacity-40 transition-all duration-200
-                         flex items-center justify-center min-w-[68px]"
+              disabled={!hasText || loading}
+              aria-label="Send"
+              className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0
+                         transition-all duration-200 cursor-pointer
+                         ${hasText && !loading
+                           ? "bg-white text-background hover:bg-white/85"
+                           : "bg-white/10 text-foreground-muted/30 cursor-not-allowed"}`}
             >
-              {loading ? <Spinner /> : "Search"}
-            </Button>
+              {loading
+                ? <Spinner />
+                : (
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 19V5M5 12l7-7 7 7" />
+                  </svg>
+                )
+              }
+            </button>
             </div>
 
           </div>

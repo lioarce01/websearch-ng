@@ -9,6 +9,7 @@ import {
   ExportDropdown,
   CopyIcon,
   CheckIcon,
+  RetryIcon,
 } from "./answer-shared";
 
 interface AnswerStreamProps {
@@ -18,9 +19,10 @@ interface AnswerStreamProps {
   sources: Source[];
   query?: string;
   mode?: string;
+  onRetry?: () => void;
 }
 
-export default function AnswerStream({ status, answer, loading, sources, query = "", mode }: AnswerStreamProps) {
+export default function AnswerStream({ status, answer, loading, sources, query = "", mode, onRetry }: AnswerStreamProps) {
   const [copiedAnswer, setCopiedAnswer] = useState(false);
 
   if (!loading && !answer) return null;
@@ -38,6 +40,17 @@ export default function AnswerStream({ status, answer, loading, sources, query =
       {/* Footer — copy + export, only when answer is complete */}
       {!loading && answer && (
         <div className="flex justify-end items-center gap-3 pt-1">
+
+          {/* Retry — re-run the full pipeline for this query */}
+          {onRetry && (
+            <button
+              onClick={onRetry}
+              className="flex items-center gap-1.5 text-[11px] text-foreground-muted/50
+                         hover:text-foreground-muted transition-colors duration-150 cursor-pointer"
+            >
+              <RetryIcon />Retry
+            </button>
+          )}
 
           {/* Copy raw answer text */}
           <button
