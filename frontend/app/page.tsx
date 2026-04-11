@@ -7,6 +7,8 @@ import SourcesList from "./components/SourcesList";
 import PipelineStatus, { type Stage } from "./components/PipelineStatus";
 import SettingsModal from "./components/SettingsModal";
 import ArtifactPanel from "./components/ArtifactPanel";
+import CodeArtifactPanel from "./components/CodeArtifactPanel";
+import { extractCodeBlocks } from "./components/answer-shared";
 import { useSettings, PROVIDERS } from "./hooks/useSettings";
 
 interface Source {
@@ -107,23 +109,32 @@ export default function Home() {
   const searchStartRef    = useRef<number>(0);
   const scrollRef         = useRef<HTMLDivElement>(null);
 
-  // Resizable artifact panel
-  const [artifactWidth, setArtifactWidth]       = useState(500);
-  const [artifactOpen, setArtifactOpen]         = useState(false);
-  const [artifactTurnIndex, setArtifactTurnIndex] = useState<number | null>(null);
+  // Resizable artifact panel (research)
+  const [artifactWidth, setArtifactWidth]           = useState(500);
+  const [artifactOpen, setArtifactOpen]             = useState(false);
+  const [artifactTurnIndex, setArtifactTurnIndex]   = useState<number | null>(null);
+
+  // Code artifact panel (search)
+  const [codeArtifactOpen, setCodeArtifactOpen]             = useState(false);
+  const [codeArtifactTurnIndex, setCodeArtifactTurnIndex]   = useState<number | null>(null);
   const isDraggingRef   = useRef(false);
   const dragStartXRef   = useRef(0);
   const dragStartWRef   = useRef(0);
 
-  const hasConversation = turns.length > 0 || loading;
-  const showArtifact    = searchMode === "research" && hasConversation && artifactOpen;
+  const hasConversation  = turns.length > 0 || loading;
+  const showArtifact     = searchMode === "research" && hasConversation && artifactOpen;
+  const showCodeArtifact = searchMode !== "research" && hasConversation && codeArtifactOpen && !loading;
+  const showRightPanel   = showArtifact || showCodeArtifact;
 
-  // During loading: always show the active stream.
-  // After loading: show the turn the user clicked (or latest by default).
+  // Research artifact — during loading: show stream; after: show selected turn
   const selectedTurn    = loading ? null : (turns[artifactTurnIndex ?? turns.length - 1] ?? turns[turns.length - 1]);
   const artifactAnswer  = loading ? displayedAnswer : (selectedTurn?.answer  ?? "");
   const artifactSources = loading ? streamSources   : (selectedTurn?.sources ?? []);
   const artifactQuery   = loading ? currentQuery    : (selectedTurn?.query   ?? "");
+
+  // Code artifact — always from a completed turn (no partial blocks during streaming)
+  const selectedCodeTurn  = turns[codeArtifactTurnIndex ?? turns.length - 1] ?? turns[turns.length - 1];
+  const codeArtifactBlocks = extractCodeBlocks(selectedCodeTurn?.answer ?? "");
 
   const openArtifact = (index: number) => {
     setArtifactTurnIndex(index);
@@ -182,6 +193,8 @@ export default function Home() {
     setFormat("auto");
     setArtifactOpen(false);
     setArtifactTurnIndex(null);
+    setCodeArtifactOpen(false);
+    setCodeArtifactTurnIndex(null);
     try { sessionStorage.removeItem("ws_turns"); } catch { /* ignore */ }
   }, [stopSoftStream]);
 
@@ -450,7 +463,7 @@ export default function Home() {
           {/* Left: conversation timeline */}
           <div className="relative flex-1 flex flex-col overflow-hidden">
             <div ref={scrollRef} className="flex-1 overflow-y-auto">
-              <div className={`mx-auto px-6 pt-12 pb-52 flex flex-col gap-12 ${showArtifact ? "max-w-xl" : "max-w-2xl"}`}>
+              <div className={`mx-auto px-6 pt-12 pb-52 flex flex-col gap-12 ${showRightPanel ? "max-w-xl" : "max-w-2xl"}`}>
 
                 {/* Past turns */}
                 {turns.map((turn, i) => (
@@ -519,7 +532,16 @@ export default function Home() {
                         )}
                       </div>
                     ) : (
-                      <AnswerStream answer={turn.answer} loading={false} status="" sources={turn.sources} query={turn.query} mode={searchMode} onRetry={() => handleSearch(turn.query)} />
+                      <AnswerStream
+                        answer={turn.answer}
+                        loading={false}
+                        status=""
+                        sources={turn.sources}
+                        query={turn.query}
+                        mode={searchMode}
+                        onRetry={() => handleSearch(turn.query)}
+                        onOpenCodePanel={() => { setCodeArtifactTurnIndex(i); setCodeArtifactOpen(true); }}
+                      />
                     )}
 
                     {searchMode !== "research" && turn.suggestions?.length > 0 && (
@@ -623,7 +645,7 @@ export default function Home() {
                 </div>
               )}
 
-              <div className={`w-full pointer-events-auto animate-slide-up ${showArtifact ? "max-w-xl" : "max-w-2xl"}`}>
+              <div className={`w-full pointer-events-auto animate-slide-up ${showRightPanel ? "max-w-xl" : "max-w-2xl"}`}>
                 <SearchBar
                   onSearch={handleSearch}
                   loading={loading}
@@ -644,8 +666,8 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Drag handle + artifact panel (research mode only) */}
-          {showArtifact && (
+          {/* Drag handle + right panel (research artifact OR code artifact) */}
+          {showRightPanel && (
             <>
               {/* Drag handle */}
               <div
@@ -653,7 +675,6 @@ export default function Home() {
                 className="w-1 shrink-0 bg-white/8 hover:bg-white/20 active:bg-white/30
                            cursor-col-resize transition-colors duration-150 relative group"
               >
-                {/* Grip dots */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
                                 flex flex-col gap-[3px] opacity-0 group-hover:opacity-100
                                 transition-opacity duration-150">
@@ -663,16 +684,24 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Artifact panel */}
+              {/* Right panel */}
               <div style={{ width: artifactWidth }} className="shrink-0 flex flex-col animate-fade-in">
-                <ArtifactPanel
-                  answer={artifactAnswer}
-                  loading={loading}
-                  sources={artifactSources}
-                  query={artifactQuery}
-                  onClose={() => setArtifactOpen(false)}
-                  onRetry={() => handleSearch(artifactQuery)}
-                />
+                {showArtifact && (
+                  <ArtifactPanel
+                    answer={artifactAnswer}
+                    loading={loading}
+                    sources={artifactSources}
+                    query={artifactQuery}
+                    onClose={() => setArtifactOpen(false)}
+                    onRetry={() => handleSearch(artifactQuery)}
+                  />
+                )}
+                {showCodeArtifact && (
+                  <CodeArtifactPanel
+                    blocks={codeArtifactBlocks}
+                    onClose={() => setCodeArtifactOpen(false)}
+                  />
+                )}
               </div>
             </>
           )}

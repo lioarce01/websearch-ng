@@ -43,6 +43,26 @@ export function getContent(fmt: ExportFormat, query: string, answer: string, sou
     : buildMarkdown(query, answer, sources);
 }
 
+// ─── Code block extraction ───────────────────────────────────────────────────
+
+export interface CodeBlock {
+  lang:  string;
+  code:  string;
+  index: number;
+}
+
+export function extractCodeBlocks(markdown: string): CodeBlock[] {
+  const regex = /```(\w+)?\n([\s\S]*?)```/g;
+  const blocks: CodeBlock[] = [];
+  let match: RegExpExecArray | null;
+  let i = 0;
+  while ((match = regex.exec(markdown)) !== null) {
+    const code = match[2].trim();
+    if (code.length > 0) blocks.push({ lang: match[1] ?? "text", code, index: i++ });
+  }
+  return blocks;
+}
+
 // ─── Citation rendering ───────────────────────────────────────────────────────
 
 function stripMarkdown(text: string): string {
